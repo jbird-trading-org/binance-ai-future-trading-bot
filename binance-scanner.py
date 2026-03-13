@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 """
-Neko Sentinel - Binance Futures Signal Scanner v3
-Improved Framework:
-- Multi-timeframe confirmation (1H + 4H)
-- Volume analysis
-- Market structure (HH/HL or LH/LL)
-- ATR-based SL
-- Better entry filters
+Neko Sentinel - Binance Futures Signal Scanner v4
+Enhanced with Volume Analysis & Candlestick Patterns
 """
 
 import hmac, hashlib, time, requests, json, os
@@ -14,6 +9,17 @@ from datetime import datetime
 
 # Config - Load from environment variables
 import os
+from pathlib import Path
+
+env_file = Path(__file__).parent / "binance-futures" / ".env"
+if env_file.exists():
+    with open(env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, val = line.split('=', 1)
+                os.environ.setdefault(key.strip(), val.strip())
+
 API_KEY = os.environ.get("BINANCE_API_KEY", "")
 SECRET = os.environ.get("BINANCE_SECRET", "")
 TELEGRAM_CHANNEL = os.environ.get("TELEGRAM_CHANNEL", "-1003847994290")
@@ -72,11 +78,23 @@ def set_leverage(symbol, leverage=10):
     except:
         return False
 
+def get_precision(symbol):
+    try:
+        r = requests.get("https://fapi.binance.com/fapi/v1/exchangeInfo", timeout=10)
+        data = r.json()
+        for s in data.get('symbols', []):
+            if s.get('symbol') == symbol:
+                return s.get('quantityPrecision', 3)
+    except:
+        pass
+    return 3
+
 def place_order(symbol, side, quantity):
     ts = int(time.time() * 1000)
     set_leverage(symbol, LEVERAGE)
+    precision = get_precision(symbol)
+    quantity = round(quantity, precision)
     
-    # Add order type (MARKET)
     params = f"symbol={symbol}&side={side}&quantity={quantity}&type=MARKET&timestamp={ts}"
     sig = get_signature(params)
     
@@ -107,13 +125,65 @@ def get_klines(symbol, interval='1h', limit=200):
     except:
         return []
 
-def get_volume(symbol, interval='1h', limit=50):
-    """Get average volume"""
+def get_volume_data(symbol, interval='1h', limit=50):
+    """Get volume analysis"""
     candles = get_klines(symbol, interval, limit)
     if not candles:
-        return 0
+        return {}
+    
     volumes = [c[4] for c in candles]
-    return sum(volumes) / len(volumes)
+    avg_volume = sum(volumes) / len(volumes) if volumes else 0
+    
+    # Recent volume trend
+    recent_avg = sum(volumes[-5:]) / 5
+    volume_spike = recent_avg > avg_volume * 1.5
+    volume_drop = recent_avg < avg_volume * 0.5
+    
+    return {
+        'avg_volume': avg_volume,
+        'recent_volume': recent_avg,
+        'volume_spike': volume_spike,
+        'volume_drop': volume_drop
+    }
+
+def detect_candlestick_patterns(candles):
+    """Detect candlestick patterns"""
+    if len(candles) < 3:
+        return None
+    
+    # Last 3 candles
+    c1 = candles[-3]  # [open, high, low, close, volume]
+    c2 = candles[-2]
+    c3 = candles[-1]
+    
+    patterns = []
+    
+    # Bullish Engulfing
+    if c2[3] < c2[1] and c3[1] > c3[2]:  # c2 red, c3 green with wicks
+        if c3[0] < c2[3] and c3[3] > c2[0]:  # c3 opens below c2 close, closes above c2 open
+            patterns.append("BULLISH_ENGULFING")
+    
+    # Bearish Engulfing
+    if c2[3] > c2[1] and c3[1] > c3[2]:  # c2 green, c3 red with wicks
+        if c3[0] > c2[3] and c3[3] < c2[0]:  # c3 opens above c2 close, closes below c2 open
+            patterns.append("BEARISH_ENGULFING")
+    
+    # Bullish Pin Bar (hammer-like)
+    body = abs(c3[3] - c3[0])
+    lower_wick = c3[0] - c3[2] if c3[0] > c3[3] else c3[3] - c3[2]
+    upper_wick = c3[1] - c3[3] if c3[3] > c3[0] else c3[1] - c3[0]
+    if lower_wick > body * 2 and upper_wick < body:
+        patterns.append("BULLISH_PINBAR")
+    
+    # Bearish Pin Bar (shooting star)
+    if upper_wick > body * 2 and lower_wick < body:
+        patterns.append("BEARISH_PINBAR")
+    
+    # Inside Bar
+    if c3[2] > c2[2] and c3[1] < c2[1]:  # c3 inside c2
+        patterns.append("INSIDE_BAR")
+    
+    return patterns if patterns else None
 
 def calculate_ema(prices, period=50):
     if len(prices) < period: return None
@@ -128,7 +198,6 @@ def calculate_ema(prices, period=50):
         return None
 
 def calculate_atr(candles, period=14):
-    """Calculate Average True Range"""
     if len(candles) < period + 1:
         return None
     try:
@@ -137,33 +206,24 @@ def calculate_atr(candles, period=14):
             high = candles[-i][1]
             low = candles[-i][2]
             prev_close = candles[-i-1][3]
-            tr = max(
-                high - low,
-                abs(high - prev_close),
-                abs(low - prev_close)
-            )
+            tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
             trs.append(tr)
         return sum(trs) / len(trs) if trs else None
     except:
         return None
 
 def check_market_structure(candles):
-    """Check for Higher Highs/Lower Lows (trend confirmation)"""
     if len(candles) < 20:
         return None
     
     highs = [c[1] for c in candles[-20:]]
     lows = [c[2] for c in candles[-20:]]
     
-    # Check last 5 candles
     recent_highs = highs[-5:]
     recent_lows = lows[-5:]
     
-    # Higher Highs + Higher Lows = Uptrend
     hh = recent_highs[-1] > recent_highs[-2] > recent_highs[-3]
     hl = recent_lows[-1] > recent_lows[-2] > recent_lows[-3]
-    
-    # Lower Highs + Lower Lows = Downtrend
     lh = recent_highs[-1] < recent_highs[-2] < recent_highs[-3]
     ll = recent_lows[-1] < recent_lows[-2] < recent_lows[-3]
     
@@ -174,21 +234,53 @@ def check_market_structure(candles):
     else:
         return "CONSOLIDATION"
 
+def find_sr_zones(candles, current):
+    """Find S/R zones"""
+    if len(candles) < 50:
+        return None, None
+    
+    highs = [c[1] for c in candles[-50:]]
+    lows = [c[2] for c in candles[-50:]]
+    
+    resistance = max(highs)
+    support = min(lows)
+    
+    # Check if near major S/R
+    dist_to_res = (resistance - current) / current * 100
+    dist_to_sup = (current - support) / current * 100
+    
+    near_resistance = dist_to_res < 5
+    near_support = dist_to_sup < 5
+    
+    return {
+        'resistance': resistance,
+        'support': support,
+        'near_resistance': near_resistance,
+        'near_support': near_support,
+        'dist_to_resistance': dist_to_res,
+        'dist_to_support': dist_to_sup
+    }
+
 def analyze_symbol(symbol):
     try:
-        # Get 1H and 4H data
         candles_1h = get_klines(symbol, '1h', 200)
         candles_4h = get_klines(symbol, '4h', 100)
         
         if not candles_1h or len(candles_1h) < 50:
             return None
         
-        closes_1h = [c[3] for c in candles_1h]
-        highs_1h = [c[1] for c in candles_1h]
-        lows_1h = [c[2] for c in candles_1h]
-        current = closes_1h[-1]
+        closes = [c[3] for c in candles_1h]
+        highs = [c[1] for c in candles_1h]
+        lows = [c[2] for c in candles_1h]
+        current = closes[-1]
         
-        # Get 4H trend if available
+        # Volume analysis
+        volume_data = get_volume_data(symbol, '1h', 50)
+        
+        # Candlestick patterns
+        patterns = detect_candlestick_patterns(candles_1h)
+        
+        # 4H trend
         trend_4h = None
         if candles_4h and len(candles_4h) >= 50:
             closes_4h = [c[3] for c in candles_4h]
@@ -196,26 +288,29 @@ def analyze_symbol(symbol):
             if ema_200_4h:
                 trend_4h = "BULLISH" if closes_4h[-1] > ema_200_4h else "BEARISH"
         
-        # EMAs (1H)
-        ema_21 = calculate_ema(closes_1h, 21)
-        ema_50 = calculate_ema(closes_1h, 50)
-        ema_200 = calculate_ema(closes_1h, 200)
+        # EMAs
+        ema_21 = calculate_ema(closes, 21)
+        ema_50 = calculate_ema(closes, 50)
+        ema_200 = calculate_ema(closes, 200)
         
         if not ema_21 or not ema_50 or not ema_200:
             return None
         
-        # ATR for dynamic SL
+        # ATR
         atr = calculate_atr(candles_1h, 14)
         
-        # Market structure
+        # Structure
         structure = check_market_structure(candles_1h)
+        
+        # S/R zones
+        sr_zones = find_sr_zones(candles_1h, current)
         
         # RSI
         try:
             gains, losses = 0, 0
             for i in range(1, 15):
-                if i >= len(closes_1h): break
-                diff = closes_1h[-i] - closes_1h[-i-1]
+                if i >= len(closes): break
+                diff = closes[-i] - closes[-i-1]
                 if diff > 0: gains += diff
                 else: losses -= diff
             avg_gain = gains/14 if gains else 0
@@ -224,28 +319,24 @@ def analyze_symbol(symbol):
         except:
             rsi = 50
         
-        # S/R
-        resistance = max(highs_1h[-50:])
-        support = min(lows_1h[-50:])
+        resistance = sr_zones['resistance']
+        support = sr_zones['support']
         range_height = resistance - support
         
-        # Volume check
-        avg_volume = get_volume(symbol, '1h', 20)
-        
-        # Trend from EMA-200
+        # Trend
         ema_trend = "BULLISH" if current > ema_200 else "BEARISH"
         
-        # FILTER: Only trade if aligned with 4H trend
+        # Multi-TF filter
         if trend_4h and trend_4h != ema_trend:
-            return None  # Reject conflicting timeframes
+            return None
         
-        # FILTER: Need market structure alignment
+        # Structure filter
         if structure == "UPTREND" and ema_trend != "BULLISH":
             return None
         if structure == "DOWNTREND" and ema_trend != "BEARISH":
             return None
         
-        # Entry zones with ATR-based SL
+        # Entry logic
         direction = None
         entry = current
         sl = None
@@ -253,47 +344,51 @@ def analyze_symbol(symbol):
         tp2 = None
         insight = ""
         
+        # Volume confirmation bonus
+        vol_confirm = ""
+        if volume_data.get('volume_spike'):
+            vol_confirm = " + Volume Spike"
+        
+        # Pattern confirmation
+        pattern_confirm = ""
+        if patterns:
+            if "BULLISH_ENGULFING" in patterns or "BULLISH_PINBAR" in patterns:
+                pattern_confirm = " + Bullish Pattern"
+            elif "BEARISH_ENGULFING" in patterns or "BEARISH_PINBAR" in patterns:
+                pattern_confirm = " + Bearish Pattern"
+        
         if current > ema_200:  # Uptrend
-            # Support bounce
-            if (current - support) / current * 100 < 3:
+            if sr_zones['near_support']:
                 direction = "LONG"
-                entry = current
-                # ATR-based SL (1.5x ATR below support)
                 sl_price = min(support * 0.98, current - (atr * 1.5)) if atr else support * 0.98
                 sl = sl_price
                 tp1 = current + (range_height * 1.272)
                 tp2 = current + (range_height * 1.618)
-                insight = f"LONG - EMA-200 confirms uptrend. Support bounce + {structure}. RSI: {rsi:.1f}"
-            
-            # Breakout
-            elif (resistance - current) / current * 100 < 5:
+                insight = f"LONG - Uptrend + Support Bounce{vol_confirm}{pattern_confirm}. RSI: {rsi:.1f}"
+            elif sr_zones['dist_to_resistance'] < 5:
                 direction = "LONG"
                 entry = resistance * 1.002
                 sl = min(ema_21, current - (atr * 1.5)) if atr else ema_21
                 tp1 = entry + (range_height * 1.272)
                 tp2 = entry + (range_height * 1.618)
-                insight = f"LONG - Breakout above resistance + {structure}. RSI: {rsi:.1f}"
+                insight = f"LONG - Breakout Setup{vol_confirm}{pattern_confirm}. RSI: {rsi:.1f}"
             else:
                 return None
         else:  # Downtrend
-            # Resistance rejection
-            if (resistance - current) / current * 100 < 3:
+            if sr_zones['near_resistance']:
                 direction = "SHORT"
-                entry = current
                 sl_price = max(resistance * 1.02, current + (atr * 1.5)) if atr else resistance * 1.02
                 sl = sl_price
                 tp1 = current - (range_height * 1.272)
                 tp2 = current - (range_height * 1.618)
-                insight = f"SHORT - EMA-200 confirms downtrend. Resistance rejection + {structure}. RSI: {rsi:.1f}"
-            
-            # Breakdown
-            elif (current - support) / current * 100 < 5:
+                insight = f"SHORT - Resistance Rejection{vol_confirm}{pattern_confirm}. RSI: {rsi:.1f}"
+            elif sr_zones['dist_to_support'] < 5:
                 direction = "SHORT"
                 entry = support * 0.998
                 sl = max(ema_21, current + (atr * 1.5)) if atr else ema_21
                 tp1 = entry - (range_height * 1.272)
                 tp2 = entry - (range_height * 1.618)
-                insight = f"SHORT - Breakdown below support + {structure}. RSI: {rsi:.1f}"
+                insight = f"SHORT - Breakdown Setup{vol_confirm}{pattern_confirm}. RSI: {rsi:.1f}"
             else:
                 return None
         
@@ -308,6 +403,8 @@ def analyze_symbol(symbol):
             'trend_1h': ema_trend,
             'trend_4h': trend_4h or "N/A",
             'structure': structure,
+            'volume': volume_data,
+            'patterns': patterns,
             'support': support,
             'resistance': resistance,
             'range': range_height,
@@ -333,24 +430,43 @@ def format_signal(analysis, order_result=None):
     
     emoji = "🟢" if s['direction'] == "LONG" else "🔴"
     
+    # Volume info
+    vol_info = ""
+    if s['volume'].get('volume_spike'):
+        vol_info = " ⚡ Volume Spike"
+    elif s['volume'].get('volume_drop'):
+        vol_info = " 📉 Low Volume"
+    
+    # Pattern info
+    pattern_info = ""
+    if s['patterns']:
+        pattern_info = " 🕯 " + " + ".join(s['patterns'])
+    
     msg = f"""{emoji} {s['direction']} SIGNAL {emoji}
 
 📈 {symbol}USDT TECHNICAL ANALYSIS 📊
 📊 Chart: https://www.tradingview.com/chart/?symbol=BINANCE:{symbol}USDT
+
 📐 MULTI-TF CONFIRMATION:
 • Trend 1H: {s['trend_1h']}
 • Trend 4H: {s['trend_4h']}
 • Structure: {s['structure']}
+
 📐 INDICATORS:
 • RSI (14): {s['rsi']:.1f}
 • EMA 21: {s['ema_21']:.6f}
 • EMA 50: {s['ema_50']:.6f}
 • EMA 200: {s['ema_200']:.6f}
 • ATR: {s['atr']:.6f}
+
+🔊 VOLUME:{vol_info}
+🕯 PATTERNS:{pattern_info}
+
 📊 STRUCTURE:
 • Support: {s['support']:.6f}
 • Resistance: {s['resistance']:.6f}
 • Range: {s['range']:.6f}
+
 💡 INSIGHT: {s['insight']}
 🎯 Entry: ${s['entry']:.6f}
 📈 TP1: ${s['tp1']:.6f} (Fib 1.272)
@@ -386,9 +502,9 @@ def save_last_signals(signals):
         json.dump(signals, f)
 
 # Main
-print(f"🔍 Scanning {len(SYMBOLS)} symbols [v3 - IMPROVED FRAMEWORK]...")
+print(f"🔍 Scanning {len(SYMBOLS)} symbols [v4 - VOLUME + PATTERNS]...")
 print(f"  {'🧪 TEST' if TEST_MODE else '🚀 LIVE'}")
-print(f"  Filters: Multi-TF + Structure + ATR SL")
+print(f"  Filters: Multi-TF + Structure + Volume + Patterns + ATR SL")
 
 balance = get_balance()
 print(f"  Balance: ${balance:.2f}")
@@ -412,16 +528,13 @@ for i, symbol in enumerate(SYMBOLS):
         signal_key = f"{symbol}_{analysis['direction']}"
         
         if signal_key not in last_signals:
-            # Calculate position size
             trade_amount = (balance * ENTRY_PERCENT / 100) * LEVERAGE
             quantity = round(trade_amount / analysis['current'], 3)
             
-            # Execute trade
             side = "BUY" if analysis['direction'] == "LONG" else "SELL"
             print(f"Executing {side}...", end=" ")
             order_result = place_order(symbol, side, quantity)
             
-            # Only post if order executed successfully
             if order_result:
                 msg = format_signal(analysis, order_result)
                 print(f"Posting...", end=" ")
@@ -435,8 +548,6 @@ for i, symbol in enumerate(SYMBOLS):
             else:
                 print(f"❌ Order failed, not posting")
                 new_signals[signal_key] = last_signals.get(signal_key, "")
-            
-            new_signals[signal_key] = msg[:50]
         else:
             print(f"(already posted)")
             new_signals[signal_key] = last_signals[signal_key]
