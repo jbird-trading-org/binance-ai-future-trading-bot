@@ -430,8 +430,10 @@ for i, symbol in enumerate(SYMBOLS):
                     open_count += 1
                 else:
                     print(f"❌ Post failed")
+                new_signals[signal_key] = msg[:50]
             else:
                 print(f"❌ Order failed, not posting")
+                new_signals[signal_key] = last_signals.get(signal_key, "")
             
             new_signals[signal_key] = msg[:50]
         else:

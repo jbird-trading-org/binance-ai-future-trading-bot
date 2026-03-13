@@ -8,7 +8,8 @@ description: |
   - Fibonacci extension targets
   - EMA trend filtering (EMA-21/50/200)
   - RSI momentum filter
-  - Auto-execute + post to Telegram channel
+  - Auto-execute + post to Telegram
+  - Quick rescan when positions close
   Use when user wants automated futures trading signals or bot trading.
 metadata:
   openclaw:
@@ -93,22 +94,19 @@ python3 scanner.py
 nohup python3 scanner.py > scanner.log 2>&1 &
 ```
 
-### Check Status
+### Position Monitor (Auto-rescan)
 ```bash
-# Check balance
-python3 scripts/check_balance.py
-
-# Check positions
-python3 scripts/check_positions.py
+python3 position-monitor.py
 ```
+Monitors positions and triggers quick scan when positions close.
 
 ## Files
 
 - `scanner.py` — Main scanner + auto-trade
+- `position-monitor.py` — Position watcher + auto-rescan
 - `SKILL.md` — This file
 - `scripts/check_balance.py` — Check account balance
 - `scripts/check_positions.py` — List open positions
-- `scripts/close_position.py` — Close specific position
 
 ## Safety
 
@@ -117,13 +115,6 @@ python3 scripts/check_positions.py
 ```python
 TEST_MODE = True  # Paper trading
 TEST_MODE = False  # Real money
-```
-
-## Post-Trade Analysis
-
-After each trade, log it for pattern analysis:
-```bash
-python3 scripts/log_trade.py --symbol BTCUSDT --direction LONG --entry 50000 --exit 52000 --pnl_percent 4.0 --result WIN
 ```
 
 ---
