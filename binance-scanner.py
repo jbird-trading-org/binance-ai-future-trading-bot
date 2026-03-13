@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Neko Sentinel - Binance Futures Signal Scanner v5
-With DCA (Dollar Cost Averaging) & Hedging
+Neko Sentinel - Binance Futures Scanner v7
+Combined: Momentum (Hot Coins) + Technical Analysis
 """
 
 import hmac, hashlib, time, requests, json, os
 from datetime import datetime
 
-# Config - Load from environment variables
+# Config
 import os
 from pathlib import Path
 
@@ -31,31 +31,29 @@ MAX_POSITIONS = 8
 MAX_MARGIN_PERCENT = 40
 ENTRY_PERCENT = 5
 
-# DCA Config
-DCA_ENABLED = True
-DCA_THRESHOLD = -2.0  # % loss before DCA trigger
-DCA_MAX_LAYERS = 3  # Max DCA layers per position
-DCA_LAYER_PERCENT = [5, 7, 10]  # % of original position size for each layer
+# Strategy Config
+USE_MOMENTUM = True
+MOMENTUM_MIN_GAIN = 2.0
+MOMENTUM_MAX_GAIN = 20.0
+MOMENTUM_RR = 2.0
 
-# Hedging Config
-HEDGE_ENABLED = True
-HEDGE_THRESHOLD = -3.0  # % loss before hedge
-HEDGE_SIZE_PERCENT = 50  # Hedge size = 50% of original position
+USE_TECHNICAL = True
+TECH_MIN_GAIN = 0.5
 
 # Load symbols
 with open('/root/.openclaw/workspace/binance-futures/futures_symbols.json') as f:
     SYMBOLS = json.load(f)
 
-SYMBOLS = [s for s in SYMBOLS if 'USDT' in s and 'USDC' not in s and len(s) < 20][:80]
+SYMBOLS = [s for s in SYMBOLS if 'USDT' in s and 'USDC' not in s and len(s) < 20][:200]
 
 def get_signature(params):
     return hmac.new(SECRET.encode(), params.encode(), hashlib.sha256).hexdigest()
 
 def get_balance():
     ts = int(time.time() * 1000)
-    params = f"timestamp={ts}"
+    params = "timestamp={}".format(ts)
     sig = get_signature(params)
-    r = requests.get(f"https://fapi.binance.com/fapi/v3/account?{params}&signature={sig}",
+    r = requests.get("https://fapi.binance.com/fapi/v3/account?{}&signature={}".format(params, sig),
                      headers={"X-MBX-APIKEY": API_KEY}, timeout=15)
     if r:
         try:
@@ -66,9 +64,9 @@ def get_balance():
 
 def get_positions():
     ts = int(time.time() * 1000)
-    params = f"timestamp={ts}"
+    params = "timestamp={}".format(ts)
     sig = get_signature(params)
-    r = requests.get(f"https://fapi.binance.com/fapi/v2/positionRisk?{params}&signature={sig}",
+    r = requests.get("https://fapi.binance.com/fapi/v2/positionRisk?{}&signature={}".format(params, sig),
                      headers={"X-MBX-APIKEY": API_KEY}, timeout=15)
     if r:
         try:
@@ -79,14 +77,13 @@ def get_positions():
 
 def set_leverage(symbol, leverage=10):
     ts = int(time.time() * 1000)
-    params = f"symbol={symbol}&leverage={leverage}&timestamp={ts}"
+    params = "symbol={}&leverage={}&timestamp={}".format(symbol, leverage, ts)
     sig = get_signature(params)
     try:
-        r = requests.post(f"https://fapi.binance.com/fapi/v1/leverage?{params}&signature={sig}",
-                          headers={"X-MBX-APIKEY": API_KEY}, timeout=15)
-        return r is not None
+        requests.post("https://fapi.binance.com/fapi/v1/leverage?{}&signature={}".format(params, sig),
+                      headers={"X-MBX-APIKEY": API_KEY}, timeout=15)
     except:
-        return False
+        pass
 
 def get_precision(symbol):
     try:
@@ -99,183 +96,50 @@ def get_precision(symbol):
         pass
     return 3
 
-def place_order(symbol, side, quantity, order_type="MARKET"):
+def get_24h_stats():
+    try:
+        r = requests.get("https://fapi.binance.com/fapi/v1/ticker/24hr", timeout=10)
+        return {t['symbol']: t for t in r.json() if t.get('symbol', '').endswith('USDT')}
+    except:
+        return {}
+
+def place_order(symbol, side, quantity):
     ts = int(time.time() * 1000)
     set_leverage(symbol, LEVERAGE)
     precision = get_precision(symbol)
     quantity = round(quantity, precision)
     
-    params = f"symbol={symbol}&side={side}&quantity={quantity}&type={order_type}&timestamp={ts}"
+    params = "symbol={}&side={}&quantity={}&type=MARKET&timestamp={}".format(symbol, side, quantity, ts)
     sig = get_signature(params)
     
     try:
-        r = requests.post(f"https://fapi.binance.com/fapi/v1/order?{params}&signature={sig}",
-                          headers={"X-MBX-APIKEY": API_KEY}, timeout=15)
+        r = requests.post("https://fapi.binance.com/fapi/v1/order?{}&signature={}".format(params, sig),
+                         headers={"X-MBX-APIKEY": API_KEY}, timeout=15)
         if r.status_code == 200:
             return r.json()
         else:
-            print(f"  Order error: {r.text}")
             return None
-    except Exception as e:
-        print(f"  Order exception: {e}")
-        return None
-
-def close_position(symbol, side, quantity):
-    """Close partial or full position"""
-    return place_order(symbol, side, quantity)
-
-# DCA State
-DCA_STATE_FILE = '/root/.openclaw/workspace/.dca_state.json'
-
-def load_dca_state():
-    try:
-        with open(DCA_STATE_FILE) as f:
-            return json.load(f)
     except:
-        return {}
-
-def save_dca_state(state):
-    with open(DCA_STATE_FILE, 'w') as f:
-        json.dump(state, f)
-
-def check_dca(position, balance):
-    """Check if DCA is needed for a position"""
-    if not DCA_ENABLED:
         return None
-    
-    symbol = position.get('symbol')
-    amt = float(position.get('positionAmt', 0))
-    if amt == 0:
-        return None
-    
-    entry = float(position.get('entryPrice', 0) or 0)
-    current = float(position.get('markPrice', 0) or 0)
-    pnl_percent = float(position.get('percentage', 0) or 0)
-    
-    direction = "LONG" if amt > 0 else "SHORT"
-    
-    # Load DCA state
-    dca_state = load_dca_state()
-    pos_key = f"{symbol}_{direction}"
-    
-    if pos_key not in dca_state:
-        dca_state[pos_key] = {'layers': 0, 'entry': entry}
-    
-    # Check if DCA triggered
-    if pnl_percent <= -DCA_THRESHOLD:
-        layers = dca_state[pos_key].get('layers', 0)
-        
-        if layers < DCA_MAX_LAYERS:
-            # Calculate DCA amount
-            dca_percent = DCA_LAYER_PERCENT[layers] if layers < len(DCA_LAYER_PERCENT) else DCA_LAYER_PERCENT[-1]
-            dca_amount = (balance * dca_percent / 100) * LEVERAGE / current
-            
-            print(f"  🔄 DCA triggered for {symbol}! Layer {layers+1}")
-            print(f"     Loss: {pnl_percent:.2f}%, DCA amount: {dca_amount}")
-            
-            # Execute DCA
-            side = "BUY" if direction == "LONG" else "SELL"
-            result = place_order(symbol, side, dca_amount)
-            
-            if result:
-                dca_state[pos_key]['layers'] = layers + 1
-                dca_state[pos_key]['entry'] = entry  # Update average entry
-                save_dca_state(dca_state)
-                return {
-                    'action': 'DCA',
-                    'symbol': symbol,
-                    'direction': direction,
-                    'layer': layers + 1,
-                    'pnl_percent': pnl_percent
-                }
-    
-    return None
 
-def check_hedge(position, balance):
-    """Check if hedging is needed"""
-    if not HEDGE_ENABLED:
-        return None
-    
-    symbol = position.get('symbol')
-    amt = float(position.get('positionAmt', 0))
-    if amt == 0:
-        return None
-    
-    current = float(position.get('markPrice', 0) or 0)
-    pnl_percent = float(position.get('percentage', 0) or 0)
-    
-    direction = "LONG" if amt > 0 else "SHORT"
-    
-    # Check if hedge triggered
-    if pnl_percent <= -HEDGE_THRESHOLD:
-        # Open opposite position as hedge
-        hedge_side = "SELL" if direction == "LONG" else "BUY"
-        hedge_amount = (abs(amt) * HEDGE_SIZE_PERCENT / 100)
-        
-        print(f"  🛡️ HEDGE triggered for {symbol}!")
-        print(f"     Loss: {pnl_percent:.2f}%, Hedge size: {hedge_amount}")
-        
-        result = place_order(symbol, hedge_side, hedge_amount)
-        
-        if result:
-            return {
-                'action': 'HEDGE',
-                'symbol': symbol,
-                'direction': direction,
-                'hedge_side': hedge_side,
-                'pnl_percent': pnl_percent
-            }
-    
-    return None
-
-def manage_positions():
-    """Check all positions for DCA/Hedge opportunities"""
-    positions = get_positions()
-    balance = get_balance()
-    
-    actions = []
-    
-    for pos in positions:
-        amt = float(pos.get('positionAmt', 0))
-        if amt == 0:
-            continue
-        
-        # Check DCA first
-        dca_result = check_dca(pos, balance)
-        if dca_result:
-            actions.append(dca_result)
-            send_telegram_alert(f"🔄 DCA EXECUTED\n{pos.get('symbol')}: {dca_result['direction']} Layer {dca_result['layer']}\nLoss: {dca_result['pnl_percent']:.2f}%")
-            continue
-        
-        # Check Hedge
-        hedge_result = check_hedge(pos, balance)
-        if hedge_result:
-            actions.append(hedge_result)
-            send_telegram_alert(f"🛡️ HEDGE EXECUTED\n{pos.get('symbol')}: {hedge_result['direction']} → {hedge_result['hedge_side']}\nLoss: {hedge_result['pnl_percent']:.2f}%")
-    
-    return actions
-
-def send_telegram_alert(message):
-    if not TELEGRAM_BOT_TOKEN:
-        return
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    try:
-        requests.post(url, data={'chat_id': TELEGRAM_CHANNEL, 'text': message}, timeout=30)
-    except:
-        pass
-
-# Rest of scanner functions... (get_klines, analyze_symbol, etc.)
-# For brevity, using simplified versions
-
-def get_klines(symbol, interval='1h', limit=100):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+def get_klines(symbol, interval='1h', limit=200):
+    url = "https://api.binance.com/api/v3/klines?symbol={}&interval={}&limit={}".format(symbol, interval, limit)
     r = requests.get(url, timeout=10)
     if not r:
         return []
     try:
-        return [[float(c[1]), float(c[2]), float(c[3]), float(c[4])] for c in r.json()]
+        return [[float(c[1]), float(c[2]), float(c[3]), float(c[4]), float(c[5])] for c in r.json()]
     except:
         return []
+
+def get_volume_data(symbol, interval='1h', limit=50):
+    candles = get_klines(symbol, interval, limit)
+    if not candles:
+        return {}
+    volumes = [c[4] for c in candles]
+    avg_volume = sum(volumes) / len(volumes) if volumes else 0
+    recent_avg = sum(volumes[-5:]) / 5 if volumes else 0
+    return {'avg_volume': avg_volume, 'recent_volume': recent_avg, 'spike': recent_avg > avg_volume * 1.5}
 
 def calculate_ema(prices, period=50):
     if len(prices) < period: return None
@@ -289,53 +153,250 @@ def calculate_ema(prices, period=50):
     except:
         return None
 
-def analyze_symbol(symbol):
+def calculate_atr(candles, period=14):
+    if len(candles) < period + 1:
+        return None
     try:
-        candles = get_klines(symbol, '1h', 100)
-        if not candles or len(candles) < 50:
+        trs = []
+        for i in range(1, min(period+1, len(candles))):
+            high = candles[-i][1]
+            low = candles[-i][2]
+            prev_close = candles[-i-1][3]
+            tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+            trs.append(tr)
+        return sum(trs) / len(trs) if trs else None
+    except:
+        return None
+
+def check_market_structure(candles):
+    if len(candles) < 20:
+        return None
+    highs = [c[1] for c in candles[-20:]]
+    lows = [c[2] for c in candles[-20:]]
+    recent_highs, recent_lows = highs[-5:], lows[-5:]
+    hh = recent_highs[-1] > recent_highs[-2] > recent_highs[-3]
+    hl = recent_lows[-1] > recent_lows[-2] > recent_lows[-3]
+    lh = recent_highs[-1] < recent_highs[-2] < recent_highs[-3]
+    ll = recent_lows[-1] < recent_lows[-2] < recent_lows[-3]
+    if hh and hl: return "UPTREND"
+    elif lh and ll: return "DOWNTREND"
+    return "CONSOLIDATION"
+
+def analyze_momentum(symbol, stats, candles, closes):
+    if not USE_MOMENTUM:
+        return None
+    try:
+        stat = stats.get(symbol, {})
+        price_change = float(stat.get('priceChangePercent', 0))
+        
+        if price_change < MOMENTUM_MIN_GAIN or price_change > MOMENTUM_MAX_GAIN:
             return None
         
-        closes = [c[3] for c in candles]
+        current = float(stat.get('lastPrice', 0))
+        if not current:
+            return None
+        
+        ema_50 = calculate_ema(closes, 50)
+        if not ema_50:
+            return None
+        
+        direction = "LONG" if current > ema_50 else "SHORT"
+        
+        atr = calculate_atr(candles, 14)
+        if not atr:
+            return None
+        
+        if direction == "LONG":
+            sl = current - (atr * 1.5)
+            tp = current + (atr * MOMENTUM_RR * 1.5)
+        else:
+            sl = current + (atr * 1.5)
+            tp = current - (atr * MOMENTUM_RR * 1.5)
+        
+        vol_data = get_volume_data(symbol)
+        vol_confirm = "Volume Spike" if vol_data.get('spike') else ""
+        
+        return {
+            'strategy': 'MOMENTUM',
+            'symbol': symbol,
+            'direction': direction,
+            'current': current,
+            'change_24h': price_change,
+            'sl': sl,
+            'tp': tp,
+            'tp2': tp * 1.2,
+            'atr': atr,
+            'volume_info': vol_confirm,
+            'pattern_info': '',
+            'insight': "HOT COIN - {}% today! Riding momentum. {}".format(price_change, vol_confirm)
+        }
+    except:
+        return None
+
+def analyze_technical(symbol, stats, candles, closes):
+    if not USE_TECHNICAL:
+        return None
+    try:
+        stat = stats.get(symbol, {})
+        price_change = float(stat.get('priceChangePercent', 0))
+        
+        if abs(price_change) < TECH_MIN_GAIN:
+            return None
+        
         highs = [c[1] for c in candles]
         lows = [c[2] for c in candles]
         current = closes[-1]
         
+        ema_21 = calculate_ema(closes, 21)
+        ema_50 = calculate_ema(closes, 50)
         ema_200 = calculate_ema(closes, 200)
-        if not ema_200:
+        
+        if not ema_21 or not ema_50 or not ema_200:
             return None
+        
+        structure = check_market_structure(candles)
         
         resistance = max(highs[-50:])
         support = min(lows[-50:])
+        range_height = resistance - support
         
-        # Simple entry logic
+        trend = "BULLISH" if current > ema_200 else "BEARISH"
+        
+        # RSI
+        try:
+            gains, losses = 0, 0
+            for i in range(1, 15):
+                if i >= len(closes): break
+                diff = closes[-i] - closes[-i-1]
+                if diff > 0: gains += diff
+                else: losses -= diff
+            avg_gain = gains/14 if gains else 0
+            avg_loss = losses/14 if losses else 0
+            rsi = 100 - (100/(1+(avg_gain/avg_loss))) if avg_loss > 0 else 50
+        except:
+            rsi = 50
+        
+        direction = None
+        entry = current
+        sl = None
+        tp1 = None
+        insight = ""
+        
         if current > ema_200:  # Uptrend
-            if (current - support) / current * 100 < 3:
-                return {'symbol': symbol, 'direction': 'LONG', 'current': current, 'sl': support * 0.98}
-        else:
-            if (resistance - current) / current * 100 < 3:
-                return {'symbol': symbol, 'direction': 'SHORT', 'current': current, 'sl': resistance * 1.02}
+            if (current - support) / current * 100 < 5:
+                direction = "LONG"
+                sl = support * 0.98
+                tp1 = current + (range_height * 1.272)
+                insight = "Trend LONG + Support Bounce. RSI: {:.1f}".format(rsi)
+            elif (resistance - current) / current * 100 < 5:
+                direction = "LONG"
+                entry = resistance * 1.002
+                sl = ema_21
+                tp1 = entry + (range_height * 1.272)
+                insight = "Trend LONG + Breakout Setup. RSI: {:.1f}".format(rsi)
+        else:  # Downtrend
+            if (resistance - current) / current * 100 < 5:
+                direction = "SHORT"
+                sl = resistance * 1.02
+                tp1 = current - (range_height * 1.272)
+                insight = "Trend SHORT + Resistance. RSI: {:.1f}".format(rsi)
+            elif (current - support) / current * 100 < 5:
+                direction = "SHORT"
+                entry = support * 0.998
+                sl = ema_21
+                tp1 = entry - (range_height * 1.272)
+                insight = "Trend SHORT + Breakdown. RSI: {:.1f}".format(rsi)
         
-        return None
+        if not direction:
+            return None
+        
+        atr = calculate_atr(candles, 14) or 0
+        vol_data = get_volume_data(symbol)
+        
+        # Pattern
+        pattern = ""
+        if len(candles) >= 3:
+            if candles[-1][2] > candles[-2][2] and candles[-1][1] < candles[-2][1]:
+                pattern = "INSIDE_BAR"
+        
+        return {
+            'strategy': 'TECHNICAL',
+            'symbol': symbol,
+            'direction': direction,
+            'current': entry,
+            'change_24h': price_change,
+            'sl': sl,
+            'tp': tp1,
+            'tp2': entry + (range_height * 1.618) if direction == "LONG" else entry - (range_height * 1.618),
+            'atr': atr,
+            'rsi': rsi,
+            'ema_21': ema_21,
+            'ema_50': ema_50,
+            'ema_200': ema_200,
+            'trend': trend,
+            'structure': structure,
+            'support': support,
+            'resistance': resistance,
+            'range': range_height,
+            'volume_info': "Volume Spike" if vol_data.get('spike') else "",
+            'pattern_info': pattern,
+            'insight': insight
+        }
     except:
         return None
 
-def format_signal(analysis):
+def format_signal(analysis, order_result=None):
     s = analysis
     symbol = s['symbol'].replace('USDT', '')
     emoji = "🟢" if s['direction'] == "LONG" else "🔴"
     
-    msg = f"""{emoji} {s['direction']} SIGNAL {emoji}
-
-📈 {symbol}USDT
-🎯 Entry: ${s['current']:.6f}
-🛡 SL: ${s['sl']:.6f}
-⏰ Timeframe: 1H"""
+    # Build message
+    msg = "{0} {1} SIGNAL {0}\n\n".format(emoji, s['direction'])
+    msg += "📈 {}USDT TECHNICAL ANALYSIS 📊\n".format(symbol)
+    msg += "📊 Chart: https://www.tradingview.com/chart/?symbol=BINANCE:{}USDT\n\n".format(symbol)
+    
+    if s.get('rsi'):
+        msg += "📐 MULTI-TF CONFIRMATION:\n"
+        msg += "• Trend 1H: {}\n".format(s.get('trend', 'N/A'))
+        msg += "• Trend 4H: N/A\n"
+        msg += "• Structure: {}\n".format(s.get('structure', 'N/A'))
+        msg += "📊 24h Change: {:.2f}%\n\n".format(s.get('change_24h', 0))
+        
+        msg += "📐 INDICATORS:\n"
+        msg += "• RSI (14): {:.1f}\n".format(s.get('rsi', 0))
+        msg += "• EMA 21: {:.6f}\n".format(s.get('ema_21', 0))
+        msg += "• EMA 50: {:.6f}\n".format(s.get('ema_50', 0))
+        msg += "• EMA 200: {:.6f}\n".format(s.get('ema_200', 0))
+        msg += "• ATR: {:.6f}\n\n".format(s.get('atr', 0))
+        
+        vol = s.get('volume_info', '')
+        msg += "🔊 VOLUME: {}\n".format(vol if vol else "N/A")
+        
+        pat = s.get('pattern_info', '')
+        msg += "🕯 PATTERNS: {}\n\n".format(pat if pat else "N/A")
+        
+        msg += "📊 STRUCTURE:\n"
+        msg += "• Support: {:.6f}\n".format(s.get('support', 0))
+        msg += "• Resistance: {:.6f}\n".format(s.get('resistance', 0))
+        msg += "• Range: {:.6f}\n\n".format(s.get('range', 0))
+    
+    msg += "💡 INSIGHT: {}\n".format(s['insight'])
+    msg += "🎯 Entry: ${:.6f}\n".format(s['current'])
+    msg += "📈 TP1: ${:.6f} (Fib 1.272)\n".format(s['tp'])
+    msg += "📈 TP2: ${:.6f} (Fib 1.618)\n".format(s.get('tp2', s['tp']))
+    msg += "🛡 SL: ${:.6f}\n".format(s['sl'])
+    msg += "⏰ Timeframe: 1H"
+    
+    if order_result:
+        msg += "\n\n✅ ORDER EXECUTED: {}".format(s['direction'])
+        msg += "\n📋 Order ID: {} | Status: {}".format(order_result.get('orderId', 'N/A'), order_result.get('status', 'NEW'))
+    
     return msg
 
 def send_telegram(message):
     if not TELEGRAM_BOT_TOKEN:
         return False
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = "https://api.telegram.org/bot{}/sendMessage".format(TELEGRAM_BOT_TOKEN)
     try:
         r = requests.post(url, data={'chat_id': TELEGRAM_CHANNEL, 'text': message}, timeout=30)
         return r.status_code == 200
@@ -355,68 +416,79 @@ def save_last_signals(signals):
         json.dump(signals, f)
 
 # Main
-print(f"🔍 Scanner v5 [DCA + HEDGE] Starting...")
-print(f"  DCA: {'ON' if DCA_ENABLED else 'OFF'} (threshold: {DCA_THRESHOLD}%, max layers: {DCA_MAX_LAYERS})")
-print(f"  Hedge: {'ON' if HEDGE_ENABLED else 'OFF'} (threshold: {HEDGE_THRESHOLD}%)")
+print("🔍 Scanner v7 [MOMENTUM + TECHNICAL] Starting...")
+print("  Momentum: ON (2-20% hot coins)")
+print("  Technical: ON (Multi-TF)")
 
 balance = get_balance()
-print(f"  Balance: ${balance:.2f}")
+print("  Balance: ${:.2f}".format(balance))
 
-# Check for DCA/Hedge opportunities first
-print("\n📊 Checking positions for DCA/Hedge...")
-dca_actions = manage_positions()
-if dca_actions:
-    print(f"  ✅ {len(dca_actions)} actions taken")
-else:
-    print("  No DCA/Hedge needed")
-
-# Then normal scanning
-print(f"\n🔍 Scanning {len(SYMBOLS)} symbols...")
 positions = get_positions()
 open_count = len([p for p in positions if float(p.get('positionAmt', 0)) != 0])
-print(f"  Open: {open_count}/{MAX_POSITIONS}")
+print("  Open: {}/{}".format(open_count, MAX_POSITIONS))
 
+print("\n📊 Fetching market data...")
+stats_24h = get_24h_stats()
+print("  Found {} symbols".format(len(stats_24h)))
+
+# Scan
 last_signals = load_last_signals()
 new_signals = {}
+signals_found = 0
 
 for i, symbol in enumerate(SYMBOLS):
     if open_count >= MAX_POSITIONS:
-        print(f"⚠️ Max positions reached")
+        print("⚠️ Max positions reached")
         break
     
-    print(f"  [{i+1}/{len(SYMBOLS)}] {symbol}...", end=" ", flush=True)
-    analysis = analyze_symbol(symbol)
+    print("  [{}/{}] {}...".format(i+1, len(SYMBOLS), symbol), end=" ", flush=True)
+    
+    candles = get_klines(symbol, '1h', 200)
+    if not candles or len(candles) < 20:
+        print("(no data)")
+        continue
+    
+    closes = [c[3] for c in candles]
+    current = closes[-1]
+    
+    # Try momentum first
+    analysis = analyze_momentum(symbol, stats_24h, candles, closes)
+    strategy = "MOMENTUM"
+    
+    if not analysis and USE_TECHNICAL:
+        analysis = analyze_technical(symbol, stats_24h, candles, closes)
+        strategy = "TECHNICAL"
     
     if analysis:
-        signal_key = f"{symbol}_{analysis['direction']}"
+        signal_key = "{}_{}_{}".format(symbol, analysis['direction'], strategy)
         
         if signal_key not in last_signals:
             trade_amount = (balance * ENTRY_PERCENT / 100) * LEVERAGE
             quantity = round(trade_amount / analysis['current'], 3)
             
             side = "BUY" if analysis['direction'] == "LONG" else "SELL"
-            print(f"Executing {side}...", end=" ")
+            prefix = "🔥" if strategy == "MOMENTUM" else "📈"
+            print("{} {}...".format(prefix, side), end=" ")
+            
             order_result = place_order(symbol, side, quantity)
             
             if order_result:
-                msg = format_signal(analysis)
-                print(f"Posting...", end=" ")
-                sent = send_telegram(msg)
-                if sent:
-                    print(f"✅ Done!")
+                msg = format_signal(analysis, order_result)
+                if send_telegram(msg):
+                    print("✅ Done!")
                     open_count += 1
+                    signals_found += 1
                 else:
-                    print(f"❌ Post failed")
-                new_signals[signal_key] = msg[:50]
+                    print("❌ Post failed")
             else:
-                print(f"❌ Order failed")
-                new_signals[signal_key] = last_signals.get(signal_key, "")
+                print("❌ Order failed")
+            
+            new_signals[signal_key] = analysis['insight'][:50]
         else:
-            print(f"(already posted)")
-            new_signals[signal_key] = last_signals[signal_key]
+            print("(already)")
+            new_signals[signal_key] = last_signals.get(signal_key, "")
     else:
-        print(f"(no signal)")
-        new_signals[signal_key] = last_signals.get(f"{symbol}_LONG", "")
+        print("(no signal)")
 
 save_last_signals(new_signals)
-print("✅ Scan complete!")
+print("\n✅ Scan complete! Found {} signals!".format(signals_found))
