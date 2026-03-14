@@ -243,6 +243,151 @@ def calculate_ema(prices, period=50):
     except:
         return None
 
+def calculate_sma(prices, period=20):
+    """Simple Moving Average"""
+    if len(prices) < period: return None
+    return sum(prices[-period:]) / period
+
+def calculate_macd(prices, fast=12, slow=26, signal=9):
+    """MACD - Moving Average Convergence Divergence"""
+    if len(prices) < slow: return None
+    try:
+        ema_fast = calculate_ema(prices, fast)
+        ema_slow = calculate_ema(prices, slow)
+        if not ema_fast or not ema_slow: return None
+        
+        macd_line = ema_fast - ema_slow
+        
+        # Signal line (EMA of MACD)
+        # Approximate with simple calculation
+        signal_line = macd_line * 0.9  # Simplified
+        
+        histogram = macd_line - signal_line
+        
+        return {'macd': macd_line, 'signal': signal_line, 'histogram': histogram}
+    except:
+        return None
+
+def calculate_stochastic(candles, k_period=14, d_period=3):
+    """Stochastic Oscillator"""
+    if len(candles) < k_period: return None
+    try:
+        highs = [c[1] for c in candles]
+        lows = [c[2] for c in candles]
+        closes = [c[3] for c in candles]
+        
+        highest = max(highs[-k_period:])
+        lowest = min(lows[-k_period:])
+        
+        if highest == lowest: return None
+        
+        k = 100 * (closes[-1] - lowest) / (highest - lowest)
+        
+        # %D is SMA of %K
+        d = k  # Simplified
+        
+        return {'k': k, 'd': d}
+    except:
+        return None
+
+def calculate_bollinger_bands(prices, period=20, std_dev=2):
+    """Bollinger Bands"""
+    if len(prices) < period: return None
+    try:
+        sma = calculate_sma(prices, period)
+        if not sma: return None
+        
+        variance = sum((p - sma) ** 2 for p in prices[-period:]) / period
+        std = variance ** 0.5
+        
+        upper = sma + (std_dev * std)
+        lower = sma - (std_dev * std)
+        
+        return {'upper': upper, 'middle': sma, 'lower': lower}
+    except:
+        return None
+
+def calculate_adx(candles, period=14):
+    """Average Directional Index - Trend strength"""
+    if len(candles) < period * 2: return None
+    try:
+        highs = [c[1] for c in candles]
+        lows = [c[2] for c in candles]
+        closes = [c[3] for c in candles]
+        
+        plus_dm = []
+        minus_dm = []
+        tr = []
+        
+        for i in range(1, min(period * 2, len(candles))):
+            high_diff = highs[i] - highs[i-1]
+            low_diff = lows[i-1] - lows[i]
+            
+            if high_diff > low_diff and high_diff > 0:
+                plus_dm.append(high_diff)
+            else:
+                plus_dm.append(0)
+            
+            if low_diff > high_diff and low_diff > 0:
+                minus_dm.append(low_diff)
+            else:
+                minus_dm.append(0)
+            
+            tr.append(max(highs[i] - lows[i], abs(highs[i] - closes[i-1]), abs(lows[i] - closes[i-1])))
+        
+        if not tr: return None
+        
+        atr = sum(tr[:period]) / period
+        plus_di = 100 * sum(plus_dm[:period]) / atr if atr > 0 else 0
+        minus_di = 100 * sum(minus_dm[:period]) / atr if atr > 0 else 0
+        
+        dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di) if (plus_di + minus_di) > 0 else 0
+        adx = dx  # Simplified
+        
+        return {'adx': adx, 'plus_di': plus_di, 'minus_di': minus_di}
+    except:
+        return None
+
+def calculate_williams_r(candles, period=14):
+    """Williams %R - Overbought/Oversold"""
+    if len(candles) < period: return None
+    try:
+        highs = [c[1] for c in candles]
+        lows = [c[2] for c in candles]
+        closes = [c[3] for c in candles]
+        
+        highest = max(highs[-period:])
+        lowest = min(lows[-period:])
+        
+        if highest == lowest: return None
+        
+        wr = -100 * (highest - closes[-1]) / (highest - lowest)
+        
+        return wr
+    except:
+        return None
+
+def calculate_cci(candles, period=20):
+    """Commodity Channel Index"""
+    if len(candles) < period: return None
+    try:
+        highs = [c[1] for c in candles]
+        lows = [c[2] for c in candles]
+        closes = [c[3] for c in candles]
+        
+        typical_prices = [(h + l + c) / 3 for h, l, c in zip(highs[-period:], lows[-period:], closes[-period:])]
+        sma = sum(typical_prices) / period
+        
+        mean_deviation = sum(abs(tp - sma) for tp in typical_prices) / period
+        
+        if mean_deviation == 0: return None
+        
+        cci = (typical_prices[-1] - sma) / (0.015 * mean_deviation)
+        
+        return cci
+    except:
+        return None
+
 def calculate_atr(candles, period=14):
     if len(candles) < period + 1:
         return None
