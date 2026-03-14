@@ -529,6 +529,78 @@ def analyze_momentum(symbol, stats, candles, closes):
     except:
         return None
 
+def build_insight(direction, structure, structure_detail, rsi, patterns, vol_data, analysis_4h):
+    """Build enhanced trading insight"""
+    parts = []
+    
+    # Basic direction
+    if direction == "LONG":
+        parts.append("Bullish")
+    else:
+        parts.append("Bearish")
+    
+    # Structure
+    if structure_detail and "BREAKOUT" in structure_detail:
+        parts.append("Breakout")
+    elif structure_detail and "BREAKDOWN" in structure_detail:
+        parts.append("Breakdown")
+    elif structure_detail and "DOUBLE_TOP" in structure_detail:
+        parts.append("Double Top")
+    elif structure_detail and "DOUBLE_BOTTOM" in structure_detail:
+        parts.append("Double Bottom")
+    elif structure_detail and "ASCENDING" in structure_detail:
+        parts.append("Ascending Triangle")
+    elif structure_detail and "DESCENDING" in structure_detail:
+        parts.append("Descending Triangle")
+    elif structure_detail and "WEDGE" in structure_detail:
+        parts.append("Wedge")
+    elif structure_detail and "CHANNEL" in structure_detail:
+        parts.append("Channel")
+    
+    # RSI conditions
+    if rsi < 30:
+        parts.append("RSI Oversold")
+    elif rsi > 70:
+        parts.append("RSI Overbought")
+    elif rsi < 40:
+        parts.append("RSI Low")
+    elif rsi > 60:
+        parts.append("RSI High")
+    
+    # Patterns
+    if patterns:
+        if "BULLISH_ENGULFING" in patterns or "MORNING_STAR" in patterns:
+            parts.append("Bullish Pattern")
+        elif "BEARISH_ENGULFING" in patterns or "EVENING_STAR" in patterns:
+            parts.append("Bearish Pattern")
+        elif "BULLISH_PINBAR" in patterns:
+            parts.append("Bullish Pinbar")
+        elif "BEARISH_PINBAR" in patterns:
+            parts.append("Bearish Pinbar")
+        elif "INSIDE_BAR" in patterns:
+            parts.append("Inside Bar")
+    
+    # Volume
+    if vol_data.get('spike'):
+        parts.append("Volume Spike")
+    elif vol_data.get('drop'):
+        parts.append("Low Volume")
+    
+    # OBV
+    if vol_data.get('obv', 0) > 0:
+        parts.append("OBV Up")
+    elif vol_data.get('obv', 0) < 0:
+        parts.append("OBV Down")
+    
+    # 4H alignment
+    trend_4h = analysis_4h.get('trend', 'N/A')
+    if trend_4h != 'N/A':
+        if (direction == "LONG" and trend_4h == "BULLISH") or (direction == "SHORT" and trend_4h == "BEARISH"):
+            parts.append("4H Aligned")
+    
+    # Join parts
+    return " | ".join(parts)
+
 def analyze_technical(symbol, stats, candles, closes):
     if not USE_TECHNICAL:
         return None
@@ -578,34 +650,10 @@ def analyze_technical(symbol, stats, candles, closes):
         entry = current
         sl = None
         tp1 = None
-        insight = ""
+        # Build enhanced insight
+        insight = build_insight(direction, structure, structure_detail, rsi, patterns, vol_data, analysis_4h)
         
-        if current > ema_200:  # Uptrend
-            if (current - support) / current * 100 < 5:
-                direction = "LONG"
-                sl = support * 0.98
-                tp1 = current + (range_height * 1.272)
-                insight = "Trend LONG + Support Bounce. RSI: {:.1f}".format(rsi)
-            elif (resistance - current) / current * 100 < 5:
-                direction = "LONG"
-                entry = resistance * 1.002
-                sl = ema_21
-                tp1 = entry + (range_height * 1.272)
-                insight = "Trend LONG + Breakout Setup. RSI: {:.1f}".format(rsi)
-        else:  # Downtrend
-            if (resistance - current) / current * 100 < 5:
-                direction = "SHORT"
-                sl = resistance * 1.02
-                tp1 = current - (range_height * 1.272)
-                insight = "Trend SHORT + Resistance. RSI: {:.1f}".format(rsi)
-            elif (current - support) / current * 100 < 5:
-                direction = "SHORT"
-                entry = support * 0.998
-                sl = ema_21
-                tp1 = entry - (range_height * 1.272)
-                insight = "Trend SHORT + Breakdown. RSI: {:.1f}".format(rsi)
-        
-        if not direction:
+        if not insight:
             return None
         
         atr = calculate_atr(candles, 14) or 0
