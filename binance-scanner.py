@@ -103,12 +103,13 @@ def get_24h_stats():
     except:
         return {}
 
-def place_order(symbol, side, quantity):
+def place_order(symbol, side, quantity, tp_price=None, sl_price=None):
     ts = int(time.time() * 1000)
     set_leverage(symbol, LEVERAGE)
     precision = get_precision(symbol)
     quantity = round(quantity, precision)
     
+    # Place market order
     params = "symbol={}&side={}&quantity={}&type=MARKET&timestamp={}".format(symbol, side, quantity, ts)
     sig = get_signature(params)
     
@@ -116,11 +117,50 @@ def place_order(symbol, side, quantity):
         r = requests.post("https://fapi.binance.com/fapi/v1/order?{}&signature={}".format(params, sig),
                          headers={"X-MBX-APIKEY": API_KEY}, timeout=15)
         if r.status_code == 200:
-            return r.json()
+            result = r.json()
+            
+            # Set TP/SL if provided
+            if tp_price or sl_price:
+                time.sleep(1)  # Wait for order to fill
+                set_tp_sl(symbol, side, quantity, tp_price, sl_price)
+            
+            return result
         else:
             return None
     except:
         return None
+
+def set_tp_sl(symbol, side, quantity, tp_price, sl_price):
+    """Set Take Profit and Stop Loss"""
+    ts = int(time.time() * 1000)
+    
+    # Set Take Profit
+    if tp_price:
+        tp_side = "SELL" if side == "BUY" else "BUY"
+        tp_params = "symbol={}&side={}&quantity={}&type=LIMIT&price={}&stopPrice={}&timeInForce=GTC&workType=STOP_MARKET&timestamp={}".format(
+            symbol, tp_side, quantity, tp_price, tp_price, ts
+        )
+        tp_sig = get_signature(tp_params)
+        try:
+            r = requests.post("https://fapi.binance.com/fapi/v1/order?{}&signature={}".format(tp_params, tp_sig),
+                            headers={"X-MBX-APIKEY": API_KEY}, timeout=15)
+            print("    TP set: ${}".format(tp_price))
+        except:
+            pass
+    
+    # Set Stop Loss
+    if sl_price:
+        sl_side = "SELL" if side == "BUY" else "BUY"
+        sl_params = "symbol={}&side={}&quantity={}&type=LIMIT&price={}&stopPrice={}&timeInForce=GTC&workType=STOP_MARKET&timestamp={}".format(
+            symbol, sl_side, quantity, sl_price, sl_price, ts
+        )
+        sl_sig = get_signature(sl_params)
+        try:
+            r = requests.post("https://fapi.binance.com/fapi/v1/order?{}&signature={}".format(sl_params, sl_sig),
+                            headers={"X-MBX-APIKEY": API_KEY}, timeout=15)
+            print("    SL set: ${}".format(sl_price))
+        except:
+            pass
 
 def get_klines(symbol, interval='1h', limit=200):
     url = "https://api.binance.com/api/v3/klines?symbol={}&interval={}&limit={}".format(symbol, interval, limit)
@@ -470,7 +510,11 @@ for i, symbol in enumerate(SYMBOLS):
             prefix = "🔥" if strategy == "MOMENTUM" else "📈"
             print("{} {}...".format(prefix, side), end=" ")
             
-            order_result = place_order(symbol, side, quantity)
+            # Get TP/SL from analysis
+            tp_price = analysis.get('tp')
+            sl_price = analysis.get('sl')
+            
+            order_result = place_order(symbol, side, quantity, tp_price, sl_price)
             
             if order_result:
                 msg = format_signal(analysis, order_result)
