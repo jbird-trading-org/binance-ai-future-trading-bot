@@ -33,7 +33,7 @@ ENTRY_PERCENT = 5
 
 # Strategy Config
 USE_MOMENTUM = True
-MOMENTUM_MIN_GAIN = 2.0
+MOMENTUM_MIN_GAIN = 1.0  # Lower from 2.0 to catch more signals
 MOMENTUM_MAX_GAIN = 20.0
 MOMENTUM_RR = 2.0
 
@@ -44,7 +44,8 @@ TECH_MIN_GAIN = 0.5
 with open('/root/.openclaw/workspace/binance-futures/futures_symbols.json') as f:
     SYMBOLS = json.load(f)
 
-SYMBOLS = [s for s in SYMBOLS if 'USDT' in s and 'USDC' not in s and len(s) < 20][:200]
+# Scan ALL available USDT symbols - no limit
+SYMBOLS = [s for s in SYMBOLS if s.endswith('USDT')]
 
 def get_signature(params):
     return hmac.new(SECRET.encode(), params.encode(), hashlib.sha256).hexdigest()
