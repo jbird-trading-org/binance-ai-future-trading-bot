@@ -403,7 +403,6 @@ def format_signal(analysis, stats):
 
 📐 MULTI-TF CONFIRMATION:
 • Trend 1H: {s['trend']}
-• Trend 4H: N/A
 • Structure: {s['structure']}
 📊 24h Change: {s['price_change']:.2f}%
 
@@ -414,12 +413,16 @@ def format_signal(analysis, stats):
 • ATR: {s['atr']:.6f}
 
 🔊 VOLUME: {'Volume Spike' if s['vol_spike'] else 'Normal'}
-🕯 PATTERNS: N/A
 
 📊 STRUCTURE:
 • Support: {s['support']:.6f}
 • Resistance: {s['resistance']:.6f}
-• Range: {s['resistance'] - s['support']:.6f}
+
+🎯 RUNNER METRICS:
+• 1H Momentum: {s.get('change_1h', 0):+.1f}%
+• Volume Spike: {s.get('vol_ratio', 1):.1f}x
+• Breakout: {'✅ Yes' if s.get('breakout') else '❌ No'}
+• Score: {s.get('runner_score', 0)}/10 🚀
 
 💡 INSIGHT: {s['direction']} | {s['structure']} | RSI: {s['rsi']:.1f}
 🎯 Entry: ${s['current']:.6f}
@@ -428,7 +431,7 @@ def format_signal(analysis, stats):
 🛡 SL: ${s['sl']:.6f}
 ⏰ Timeframe: 1H
 
-📰 Latest News: {news}
+📰 {news}
 """
     return msg
 
@@ -515,6 +518,8 @@ def main():
                     else:
                         msg = format_signal(analysis, stats)
                         msg += f"\n✅ ORDER EXECUTED: {analysis['direction']}\n"
+                        msg += f"🛡 SL: ${analysis['sl']:.6f}\n"
+                        msg += f"📈 TP: ${analysis['tp1']:.6f}\n"
                         msg += f"📋 Order ID: {order_id} | Status: {status}"
                         
                         send_telegram(msg)
