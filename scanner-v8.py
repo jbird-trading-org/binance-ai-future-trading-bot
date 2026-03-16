@@ -426,8 +426,7 @@ def format_signal(analysis, stats):
 
 💡 INSIGHT: {s['direction']} | {s['structure']} | RSI: {s['rsi']:.1f}
 🎯 Entry: ${s['current']:.6f}
-📈 TP1: ${s['tp1']:.6f}
-📈 TP2: ${s['tp2']:.6f}
+📈 TP: ${s['tp1']:.6f}
 🛡 SL: ${s['sl']:.6f}
 ⏰ Timeframe: 1H
 
