@@ -11,12 +11,22 @@ import hashlib
 import requests
 from datetime import datetime
 
-# === CONFIG ===
-API_KEY = os.environ.get('BINANCE_API_KEY', 'ZP97eSsGupjeR7JcOUwSZnPPFIXFKGSe7Yw7gdZSAN3fkPlPxrfTwzk4QEEQftCx')
-SECRET = os.environ.get('BINANCE_SECRET', 'rKUgMVksTn3qeUk0jl1aau8lS4LShOR2ILoSygpaRlauI130FuFJrUTuYoAfanUl')
+# === LOAD FROM ENV FILE ===
+env_file = '/root/.openclaw/workspace/binance-futures/.env'
+if os.path.exists(env_file):
+    with open(env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ[key] = value
 
-TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '***REDACTED_TELEGRAM_TOKEN***')
-TELEGRAM_CHANNEL = os.environ.get('TELEGRAM_CHANNEL', '-1003847994290')
+# === CONFIG ===
+API_KEY = os.environ.get('BINANCE_API_KEY', '')
+SECRET = os.environ.get('BINANCE_SECRET', '')
+
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_CHANNEL = os.environ.get('TELEGRAM_CHANNEL', '')
 BRAVE_API_KEY = os.environ.get('BRAVE_API_KEY', '')
 
 LEVERAGE = 10
