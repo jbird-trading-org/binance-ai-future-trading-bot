@@ -25,7 +25,7 @@ metadata:
         - TELEGRAM_CHANNEL
         - BRAVE_API_KEY
     startup:
-      command: "cd /root/.openclaw/workspace && nohup bash -c 'while true; do source binance-futures/.env && python3 scanner-v8.py; echo \"---\"; sleep 300; done' > scanner.log 2>&1 &"
+      command: "cd /root/.openclaw/workspace/neko-futures-trader && nohup bash -c 'while true; do source .env && python3 scanner-v8.py; echo \"---\"; sleep 300; done' > ../scanner.log 2>&1 &"
       type: "background"
 ---
 
