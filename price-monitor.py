@@ -15,7 +15,7 @@ from datetime import datetime
 # === LOAD FROM ENV FILE ===
 # Try multiple possible locations
 possible_paths = [
-    '/root/.openclaw/workspace/binance-futures/.env',
+    '/root/.openclaw/workspace/neko-futures-trader/.env',
     os.path.join(os.path.dirname(__file__), 'binance-futures', '.env'),
     os.path.join(os.path.dirname(__file__), '.env'),
     '../binance-futures/.env'
