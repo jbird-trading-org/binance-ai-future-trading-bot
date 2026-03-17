@@ -192,8 +192,9 @@ def main():
                 if hit and symbol not in triggered:
                     print(f"⚠️ {symbol} {hit} triggered! Verifying...")
                     
-                    # DOUBLE CHECK - wait 2 seconds and verify price is still at level
-                    time.sleep(2)
+                    # DOUBLE CHECK - wait 60 seconds and verify price is still at level
+                    print(f"  ⏳ Waiting 60s to confirm...")
+                    time.sleep(60)
                     current_check = get_price(symbol)
                     
                     # STRICT verification - must still be at the level
