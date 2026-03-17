@@ -40,13 +40,20 @@ def get_sig(params):
 def get_positions():
     ts = int(time.time() * 1000)
     params = f'timestamp={ts}'
-    r = requests.get(f'https://fapi.binance.com/fapi/v3/account?{params}&signature={get_sig(params)}', 
+    r = requests.get(f'https://fapi.binance.com/fapi/v2/positionRisk?{params}&signature={get_sig(params)}', 
                    headers={'X-MBX-APIKEY': API_KEY}, timeout=15)
-    return [p for p in r.json().get('positions', []) if float(p.get('positionAmt', 0)) != 0]
+    return [p for p in r.json() if float(p.get('positionAmt', 0)) != 0]
 
 def get_price(symbol):
-    r = requests.get(f'https://fapi.binance.com/fapi/v1/ticker/price?symbol={symbol}', timeout=10)
-    return float(r.json()['price'])
+    # Use mark price for more accurate SL/TP checks
+    ts = int(time.time() * 1000)
+    params = f'timestamp={ts}'
+    r = requests.get(f'https://fapi.binance.com/fapi/v2/positionRisk?symbol={symbol}&{params}&signature={get_sig(params)}', 
+                   headers={'X-MBX-APIKEY': API_KEY}, timeout=15)
+    data = r.json()
+    if isinstance(data, list) and len(data) > 0:
+        return float(data[0].get('markPrice', 0))
+    return 0
 
 def get_atr(symbol, period=14):
     """Get ATR for SL/TP calculation"""
@@ -96,12 +103,15 @@ def main():
     print(f"🔔 Price Monitor Starting...")
     print(f"   Check interval: {CHECK_INTERVAL}s")
     
-    # Track triggered positions
+    # Track triggered positions (per cycle)
     triggered = {}
     
     while True:
         try:
             positions = get_positions()
+            
+            # Clean triggered dict - keep only positions that are still open
+            triggered = {s: t for s, t in triggered.items() if any(p.get('symbol') == s for p in positions)}
             
             if not positions:
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] No positions")
@@ -112,9 +122,13 @@ def main():
                 symbol = p.get('symbol')
                 amt = float(p.get('positionAmt', 0))
                 entry = float(p.get('entryPrice', 0) or 0)
+                current = float(p.get('markPrice', 0) or 0)
                 
                 if not entry or entry == 0:
                     entry = get_price(symbol)
+                
+                if not current or current == 0:
+                    current = get_price(symbol)
                 
                 side = 'LONG' if amt > 0 else 'SHORT'
                 
@@ -126,6 +140,9 @@ def main():
                 sl_price, tp1, tp2 = calculate_fibonacci_sl_tp(entry, atr, side)
                 
                 current = get_price(symbol)
+                
+                # Debug: print levels
+                print(f"  {symbol}: Entry={entry:.6f} Current={current:.6f} SL={sl_price:.6f} TP1={tp1:.6f} TP2={tp2:.6f} ATR={atr:.6f}")
                 
                 # Check if SL/TP hit
                 hit = None
@@ -146,13 +163,21 @@ def main():
                     close_side = 'SELL' if side == 'LONG' else 'BUY'
                     result = close_position(symbol, close_side, abs(amt))
                     
-                    # Calculate PnL
+                    # Check if order was accepted
+                    order_status = result.get('status', '')
+                    if order_status not in ['NEW', 'FILLED', 'PARTIALLY_FILLED']:
+                        print(f"  ❌ Close failed: {result}")
+                        continue
+                    
+                    # Calculate PnL using the close price
+                    exit_price = float(result.get('avgPrice', current))
+                    
                     if side == 'LONG':
-                        pnl = (current - entry) * abs(amt)
-                        pnl_pct = ((current - entry) / entry) * 100
+                        pnl = (exit_price - entry) * abs(amt)
+                        pnl_pct = ((exit_price - entry) / entry) * 100
                     else:
-                        pnl = (entry - current) * abs(amt)
-                        pnl_pct = ((entry - current) / entry) * 100
+                        pnl = (entry - exit_price) * abs(amt)
+                        pnl_pct = ((entry - exit_price) / entry) * 100
                     
                     emoji = "🟢" if pnl > 0 else "🔴"
                     win_loss = "🎉💰 PROFIT TAKEN! 💰🎉" if pnl > 0 else "❌ STOP HIT"
@@ -160,8 +185,8 @@ def main():
                     msg = f"{win_loss}\n\n"
                     msg += f"{emoji} {symbol} {side}\n"
                     msg += f"📈 {pnl_pct:+.2f}% (${pnl:+.2f})\n"
-                    msg += f"Entry: ${entry:.6f} → Exit: ${current:.6f}\n"
-                    msg += f"Target: ${tp1:.6f} (TP1) 🎯\n"
+                    msg += f"Entry: ${entry:.6f} → Exit: ${exit_price:.6f}\n"
+                    msg += f"Target: ${tp1:.6f} ({hit}) 🎯\n"
                     
                     if hit == 'SL':
                         msg += f"\n#StopLoss #Trading #Crypto"
@@ -169,13 +194,15 @@ def main():
                         msg += f"\n#TakeProfit #Winning #Crypto"
                     
                     send_telegram(msg)
-                    triggered[symbol] = True
-                    print(f"  Closed! {hit}")
+                    triggered[symbol] = hit
+                    print(f"  ✅ Closed! {hit} | PnL: ${pnl:.2f}")
             
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Checked {len(positions)} positions")
             
         except Exception as e:
             print(f"Error: {e}")
+            import traceback
+            traceback.print_exc()
         
         time.sleep(CHECK_INTERVAL)
 
