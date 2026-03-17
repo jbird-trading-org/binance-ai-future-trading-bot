@@ -56,16 +56,24 @@ def get_price(symbol):
     return 0
 
 def get_atr(symbol, period=14):
-    """Get ATR for SL/TP calculation"""
-    r = requests.get(f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval=1h&limit=50', timeout=10)
+    """Get ATR for SL/TP calculation - proper True Range formula"""
+    r = requests.get(f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval=1h&limit={period+1}', timeout=10)
     candles = r.json()
     
+    if len(candles) < period + 1:
+        return None
+    
     trs = []
-    for i in range(1, min(period + 1, len(candles))):
-        high = float(candles[-i][1])
-        low = float(candles[-i][2])
-        prev = float(candles[-i-1][3])
-        tr = max(high - low, abs(high - prev), abs(low - prev))
+    for i in range(1, len(candles)):
+        high = float(candles[i][2])  # High
+        low = float(candles[i][3])   # Low
+        prev_close = float(candles[i-1][4])  # Previous close
+        
+        # True Range = max of:
+        # 1. High - Low
+        # 2. |High - Previous Close|
+        # 3. |Low - Previous Close|
+        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
         trs.append(tr)
     
     return sum(trs) / len(trs) if trs else None
@@ -275,11 +283,7 @@ def main():
                     else:
                         win_loss = "❌ STOP HIT"
                     
-                    msg = f"{win_loss}\n\n"
-                    msg += f"{emoji} {symbol} {side}\n"
                     # Format message to match template
-                    fib_note = "Fib 1.272" if hit == 'TP' else ""
-                    
                     msg = f"{win_loss}\n\n"
                     msg += f"{emoji} {symbol} {side}\n"
                     msg += f"📈 {pnl_pct:+.2f}% (${pnl:+.2f})\n"
