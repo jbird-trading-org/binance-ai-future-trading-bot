@@ -169,9 +169,31 @@ def main():
                         print(f"  ❌ Close failed: {result}")
                         continue
                     
-                    # Calculate PnL using the close price
-                    exit_price = float(result.get('avgPrice', current))
+                    # Wait for order to fill and get actual exit price
+                    order_id = result.get('orderId')
+                    exit_price = 0
+                    max_retries = 5
+                    for _ in range(max_retries):
+                        time.sleep(1)
+                        check_params = f'orderId={order_id}&symbol={symbol}&timestamp={int(time.time() * 1000)}'
+                        check_r = requests.get(f'https://fapi.binance.com/fapi/v1/order?{check_params}&signature={get_sig(check_params)}', 
+                                              headers={'X-MBX-APIKEY': API_KEY}, timeout=15)
+                        order_data = check_r.json()
+                        status = order_data.get('status', '')
+                        avg_price = float(order_data.get('avgPrice', 0))
+                        if status == 'FILLED' and avg_price > 0:
+                            exit_price = avg_price
+                            break
+                        elif status == 'FILLED':
+                            # Use current price as fallback
+                            exit_price = current
+                            break
                     
+                    # Fallback if still no exit price
+                    if exit_price == 0:
+                        exit_price = current
+                    
+                    # Calculate PnL using the actual exit price
                     if side == 'LONG':
                         pnl = (exit_price - entry) * abs(amt)
                         pnl_pct = ((exit_price - entry) / entry) * 100
@@ -180,7 +202,12 @@ def main():
                         pnl_pct = ((entry - exit_price) / entry) * 100
                     
                     emoji = "🟢" if pnl > 0 else "🔴"
-                    win_loss = "🎉💰 PROFIT TAKEN! 💰🎉" if pnl > 0 else "❌ STOP HIT"
+                    
+                    # Fix message - correctly show TP or SL
+                    if hit == 'TP':
+                        win_loss = "🎉💰 PROFIT TAKEN! 💰🎉"
+                    else:
+                        win_loss = "❌ STOP HIT"
                     
                     msg = f"{win_loss}\n\n"
                     msg += f"{emoji} {symbol} {side}\n"
