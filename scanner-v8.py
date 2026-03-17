@@ -537,6 +537,26 @@ def main():
                         send_telegram(msg)
                         print(f"  Order: {order_id} | Posted to Telegram")
                         
+                        # Save SL/TP for price monitor
+                        try:
+                            positions_file = '.positions_sl_tp.json'
+                            positions_data = {}
+                            if os.path.exists(positions_file):
+                                with open(positions_file, 'r') as f:
+                                    positions_data = json.load(f)
+                            positions_data[symbol] = {
+                                'entry': entry_price,
+                                'sl': sl_price,
+                                'tp1': tp_price,
+                                'side': side,
+                                'opened_at': datetime.now().isoformat()
+                            }
+                            with open(positions_file, 'w') as f:
+                                json.dump(positions_data, f)
+                            print(f"  Saved SL/TP: SL={sl_price}, TP={tp_price}")
+                        except Exception as e:
+                            print(f"  Warning: Could not save SL/TP: {e}")
+                        
                         posted.add(symbol)
                         with open('.posted_signals', 'w') as f:
                             f.write(','.join(posted))

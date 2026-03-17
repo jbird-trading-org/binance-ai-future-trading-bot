@@ -10,6 +10,7 @@ import time
 import hmac
 import hashlib
 import requests
+import json
 from datetime import datetime
 
 # === LOAD FROM ENV FILE ===
@@ -33,6 +34,27 @@ TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHANNEL = os.environ.get('TELEGRAM_CHANNEL', '')
 
 CHECK_INTERVAL = int(os.environ.get('CHECK_INTERVAL', 60))  # seconds
+
+# Positions SL/TP file - shared with scanner
+POSITIONS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.positions_sl_tp.json')
+
+def load_positions_sl_tp():
+    """Load SL/TP data saved by scanner"""
+    try:
+        if os.path.exists(POSITIONS_FILE):
+            with open(POSITIONS_FILE, 'r') as f:
+                return json.load(f)
+    except:
+        pass
+    return {}
+
+def save_positions_sl_tp(data):
+    """Save SL/TP data for price monitor"""
+    try:
+        with open(POSITIONS_FILE, 'w') as f:
+            json.dump(data, f)
+    except:
+        pass
 
 def get_sig(params):
     return hmac.new(SECRET.encode(), params.encode(), hashlib.sha256).hexdigest()
@@ -133,8 +155,20 @@ def main():
             
             if not positions:
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] No positions")
+                # Clean up saved positions file
+                save_positions_sl_tp({})
                 time.sleep(CHECK_INTERVAL)
                 continue
+            
+            # Clean up stale positions (remove any that are no longer open)
+            open_symbols = {p.get('symbol') for p in positions}
+            saved_data = load_positions_sl_tp()
+            stale = [s for s in saved_data if s not in open_symbols]
+            if stale:
+                for s in stale:
+                    del saved_data[s]
+                save_positions_sl_tp(saved_data)
+                print(f"  🗑 Cleaned up {len(stale)} stale positions")
             
             for p in positions:
                 symbol = p.get('symbol')
@@ -150,17 +184,29 @@ def main():
                 
                 side = 'LONG' if amt > 0 else 'SHORT'
                 
-                # Get ATR and calculate Fibonacci SL/TP
-                atr = get_atr(symbol)
-                if not atr:
-                    atr = entry * 0.02  # Default 2% if no ATR
+                # Load SL/TP from file (saved by scanner)
+                saved_data = load_positions_sl_tp()
+                pos_data = saved_data.get(symbol, {})
                 
-                sl_price, tp1, tp2 = calculate_fibonacci_sl_tp(entry, atr, side)
+                if pos_data and 'sl' in pos_data and 'tp1' in pos_data:
+                    # Use saved SL/TP from scanner
+                    sl_price = float(pos_data['sl'])
+                    tp1 = float(pos_data['tp1'])
+                    # Calculate TP2 as 1.5x TP1 distance
+                    tp2 = tp1 + (tp1 - sl_price) * 0.5  # Approximate
+                    print(f"  {symbol}: Loaded SL/TP from scanner")
+                else:
+                    # Fallback: calculate using ATR
+                    atr = get_atr(symbol)
+                    if not atr:
+                        atr = entry * 0.02
+                    sl_price, tp1, tp2 = calculate_fibonacci_sl_tp(entry, atr, side)
+                    print(f"  {symbol}: Calculated SL/TP (not found in file)")
                 
                 current = get_price(symbol)
                 
                 # Debug: print levels
-                print(f"  {symbol}: Entry={entry:.6f} Current={current:.6f} SL={sl_price:.6f} TP1={tp1:.6f} TP2={tp2:.6f} ATR={atr:.6f}")
+                print(f"  {symbol}: Entry={entry:.6f} Current={current:.6f} SL={sl_price:.6f} TP1={tp1:.6f} TP2={tp2:.6f}")
                 
                 # Check if SL/TP hit - STRICT logic
                 # For LONG: SL must be BELOW entry, TP must be ABOVE entry
@@ -300,6 +346,14 @@ def main():
                         msg += f"\n#TakeProfit #Winning #Crypto"
                     
                     send_telegram(msg)
+                    
+                    # Remove from saved positions file
+                    saved_data = load_positions_sl_tp()
+                    if symbol in saved_data:
+                        del saved_data[symbol]
+                        save_positions_sl_tp(saved_data)
+                        print(f"  🗑 Removed {symbol} from saved positions")
+                    
                     triggered[symbol] = hit
                     print(f"  ✅ Closed! {hit} | PnL: ${pnl:.2f}")
             
