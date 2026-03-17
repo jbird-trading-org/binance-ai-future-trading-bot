@@ -212,14 +212,37 @@ def main():
                     result = close_position(symbol, close_side, abs(amt))
                     
                     order_status = result.get('status', '')
+                    order_id = result.get('orderId')
+                    
                     if order_status not in ['NEW', 'FILLED', 'PARTIALLY_FILLED']:
                         print(f"    ❌ Close failed: {result}")
                         continue
                     
-                    # Get exit price
-                    exit_price = current_check
-                    if result.get('avgPrice'):
-                        exit_price = float(result.get('avgPrice', current_check))
+                    # Wait for order to fill and get actual exit price
+                    exit_price = 0
+                    max_retries = 10
+                    for i in range(max_retries):
+                        time.sleep(1)
+                        check_params = f'orderId={order_id}&symbol={symbol}&timestamp={int(time.time() * 1000)}'
+                        check_r = requests.get(f'https://fapi.binance.com/fapi/v1/order?{check_params}&signature={get_sig(check_params)}', 
+                                              headers={'X-MBX-APIKEY': API_KEY}, timeout=15)
+                        order_data = check_r.json()
+                        status = order_data.get('status', '')
+                        avg_price = float(order_data.get('avgPrice', 0))
+                        
+                        if status == 'FILLED' and avg_price > 0:
+                            exit_price = avg_price
+                            print(f"    📝 Order filled at {exit_price:.6f}")
+                            break
+                        elif status == 'FILLED':
+                            # Use current price as fallback
+                            exit_price = current_check
+                            break
+                    
+                    # Fallback if still no exit price
+                    if exit_price == 0:
+                        exit_price = current_check
+                        print(f"    ⚠️ Using current price: {exit_price:.6f}")
                     
                     # Calculate PnL
                     if side == 'LONG':
