@@ -262,9 +262,18 @@ def main():
                     
                     msg = f"{win_loss}\n\n"
                     msg += f"{emoji} {symbol} {side}\n"
+                    # Format message to match template
+                    fib_note = "Fib 1.272" if hit == 'TP' else ""
+                    
+                    msg = f"{win_loss}\n\n"
+                    msg += f"{emoji} {symbol} {side}\n"
                     msg += f"📈 {pnl_pct:+.2f}% (${pnl:+.2f})\n"
                     msg += f"Entry: ${entry:.6f} → Exit: ${exit_price:.6f}\n"
-                    msg += f"Target: ${target_price:.6f} ({hit}) 🎯\n"
+                    msg += f"\n"
+                    msg += f"🛡 SL: ${sl_price:.6f} (1.5×ATR)\n"
+                    msg += f"📈 TP1: ${tp1:.6f} (3×ATR)\n"
+                    msg += f"📈 TP2: ${tp2:.6f} (4.5×ATR)\n"
+                    msg += f"🎯 Hit: {hit} @ ${target_price:.6f}\n"
                     
                     if hit == 'SL':
                         msg += f"\n#StopLoss #Trading #Crypto"
