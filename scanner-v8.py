@@ -659,6 +659,31 @@ def main():
     positions = get_positions()
     open_count = len(positions)
     
+    # Detect manually closed positions
+    try:
+        positions_file = os.path.join(script_dir, '.positions_sl_tp.json')
+        if os.path.exists(positions_file):
+            with open(positions_file, 'r') as f:
+                saved_positions = json.load(f)
+            
+            current_symbols = {p.get('symbol') for p in positions}
+            
+            for sym in list(saved_positions.keys()):
+                if sym not in current_symbols:
+                    # Position was closed (manually or auto)
+                    print(f"  📝 Detected closed: {sym}")
+                    # Add to recently closed
+                    with open('.recently_closed', 'a') as f:
+                        f.write(f"{sym},{int(time.time())}\n")
+                    # Remove from saved
+                    del saved_positions[sym]
+            
+            # Update saved positions
+            with open(positions_file, 'w') as f:
+                json.dump(saved_positions, f)
+    except Exception as e:
+        print(f"  Warning: Could not check closed positions: {e}")
+    
     print(f"  Balance: ${balance:.2f}")
     print(f"  Open: {open_count}/{MAX_POSITIONS}")
     
