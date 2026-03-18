@@ -183,7 +183,7 @@ def get_klines(symbol, interval='1h', limit=100):
     return r.json()
 
 def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
-    """Place order with auto SL/TP"""
+    """Place order with OCO (One Cancels Other) - both SL and TP at once"""
     ts = int(time.time() * 1000)
     
     # First place the order
@@ -194,34 +194,91 @@ def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
     r = requests.post(url, headers=headers, timeout=15)
     result = r.json()
     
-    # Then set stop loss - use working price instead of closePosition
-    if sl_price:
-        sl_side = "SELL" if side == "BUY" else "BUY"
-        # Get current price for working price
+    # OCO Orders - place both SL and TP simultaneously
+    if sl_price and tp_price:
+        # Get current price
         r = requests.get(f'https://fapi.binance.com/fapi/v1/ticker/price?symbol={symbol}', timeout=10)
         current_price = float(r.json()['price'])
-        sl_price_adj = current_price * 0.99 if side == "BUY" else current_price * 1.01
         
-        sl_params = "symbol={}&side={}&type=STOP&price={}&stopPrice={}&timeInForce=GTC&quantity={}&timestamp={}".format(
-            symbol, sl_side, round(sl_price_adj, 6), round(sl_price, 6), quantity, int(time.time() * 1000))
+        # Calculate working prices (trigger prices)
+        if side == "BUY":  # LONG
+            # SL triggers when price falls
+            sl_trigger = sl_price
+            sl_working = sl_price * 0.99
+            # TP triggers when price rises  
+            tp_trigger = tp_price
+            tp_working = tp_price * 1.01
+        else:  # SHORT
+            sl_trigger = sl_price
+            sl_working = sl_price * 1.01
+            tp_trigger = tp_price
+            tp_working = tp_price * 0.99
+        
+        # Place STOP Loss order
+        sl_side = "SELL" if side == "BUY" else "BUY"
+        sl_params = "symbol={}&side={}&type=STOP_MARKET&stopPrice={}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={}".format(
+            symbol, sl_side, round(sl_trigger, 6), int(time.time() * 1000))
         sl_sig = get_signature(sl_params)
         sl_url = "https://fapi.binance.com/fapi/v1/order?{}&signature={}".format(sl_params, sl_sig)
-        requests.post(sl_url, headers=headers, timeout=15)
-    
-    # Then set take profit
-    if tp_price:
-        tp_side = "SELL" if side == "BUY" else "BUY"
-        r = requests.get(f'https://fapi.binance.com/fapi/v1/ticker/price?symbol={symbol}', timeout=10)
-        current_price = float(r.json()['price'])
-        tp_price_adj = current_price * 1.01 if side == "BUY" else current_price * 0.99
+        try:
+            requests.post(sl_url, headers=headers, timeout=10)
+        except:
+            pass
         
-        tp_params = "symbol={}&side={}&type=STOP&price={}&stopPrice={}&timeInForce=GTC&quantity={}&timestamp={}".format(
-            symbol, tp_side, round(tp_price_adj, 6), round(tp_price, 6), quantity, int(time.time() * 1000))
+        # Place TAKE PROFIT order
+        tp_side = "SELL" if side == "BUY" else "BUY"
+        tp_params = "symbol={}&side={}&type=TAKE_PROFIT_MARKET&stopPrice={}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={}".format(
+            symbol, tp_side, round(tp_trigger, 6), int(time.time() * 1000))
         tp_sig = get_signature(tp_params)
         tp_url = "https://fapi.binance.com/fapi/v1/order?{}&signature={}".format(tp_params, tp_sig)
-        requests.post(tp_url, headers=headers, timeout=15)
+        try:
+            requests.post(tp_url, headers=headers, timeout=10)
+        except:
+            pass
     
     return result
+
+def check_margin_risk():
+    """Check margin and position risk - don't overtrade"""
+    ts = int(time.time() * 1000)
+    params = f'timestamp={ts}'
+    sig = get_signature(params)
+    r = requests.get(f'https://fapi.binance.com/fapi/v3/account?{params}&signature={sig}', 
+                   headers={'X-MBX-APIKEY': API_KEY}, timeout=15)
+    acc = r.json()
+    
+    balance = float(acc.get('totalMarginBalance', 0))
+    positions = get_positions()
+    notional = sum(abs(float(p.get('positionAmt', 0)) * float(p.get('entryPrice', 0))) for p in positions)
+    margin_used = notional / 10  # 10x leverage
+    
+    margin_pct = (margin_used / balance * 100) if balance > 0 else 0
+    
+    return {
+        'balance': balance,
+        'positions': len(positions),
+        'notional': notional,
+        'margin_used': margin_used,
+        'margin_pct': margin_pct,
+        'safe_to_trade': margin_pct < 40 and len(positions) < 5
+    }
+
+def should_add_trailing_tp(entry, current, tp, side, trailing_percent=1.5):
+    """Check if trailing TP should be activated
+    Activates when price moves 1.5% in profit direction
+    """
+    if side == "LONG":
+        profit_pct = ((current - entry) / entry) * 100
+        if profit_pct >= trailing_percent:
+            # Move TP up by 0.5%
+            new_tp = current * 1.005
+            return new_tp if new_tp > tp else tp
+    else:  # SHORT
+        profit_pct = ((entry - current) / entry) * 100
+        if profit_pct >= trailing_percent:
+            new_tp = current * 0.995
+            return new_tp if new_tp < tp else tp
+    return None
 
 def place_order(symbol, side, quantity):
     ts = int(time.time() * 1000)
@@ -686,6 +743,16 @@ def main():
     
     print(f"  Balance: ${balance:.2f}")
     print(f"  Open: {open_count}/{MAX_POSITIONS}")
+    
+    # Check margin risk before trading
+    risk = check_margin_risk()
+    print(f"  📊 Risk: {risk['margin_pct']:.1f}% margin used")
+    
+    if not risk['safe_to_trade']:
+        print(f"⚠️ HIGH RISK - Not trading!")
+        print(f"   Margin: {risk['margin_pct']:.1f}% (max 40%)")
+        print(f"   Positions: {risk['positions']}/5")
+        return
     
     if open_count >= MAX_POSITIONS:
         print("⚠️ Max positions reached")
