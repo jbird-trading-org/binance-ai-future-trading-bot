@@ -108,10 +108,10 @@ def update_sl_to_breakeven(symbol, side, new_sl):
     
     ts = int(time.time() * 1000)
     close_side = 'SELL' if side == 'LONG' else 'BUY'
-    params = f'symbol={symbol}&side={close_side}&type=STOP_MARKET&stopPrice={new_sl}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={ts}'
+    params = f'symbol={symbol}&side={close_side}&orderType=STOP&stopPrice={new_sl}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={ts}'
     sig = get_sig(params)
     try:
-        r = requests.post(f'https://fapi.binance.com/fapi/v1/order?{params}&signature={sig}', 
+        r = requests.post(f'https://fapi.binance.com/fapi/v1/orderAlg?{params}&signature={sig}', 
                         headers=headers, timeout=15)
         return r.json()
     except:
@@ -122,10 +122,10 @@ def update_tp_trailing(symbol, side, new_tp):
     ts = int(time.time() * 1000)
     headers = {'X-MBX-APIKEY': API_KEY}
     close_side = 'SELL' if side == 'LONG' else 'BUY'
-    params = f'symbol={symbol}&side={close_side}&type=TAKE_PROFIT_MARKET&stopPrice={new_tp}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={ts}'
+    params = f'symbol={symbol}&side={close_side}&orderType=STOP&stopPrice={new_tp}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={ts}'
     sig = get_sig(params)
     try:
-        r = requests.post(f'https://fapi.binance.com/fapi/v1/order?{params}&signature={sig}', 
+        r = requests.post(f'https://fapi.binance.com/fapi/v1/orderAlg?{params}&signature={sig}', 
                         headers=headers, timeout=15)
         return r.json()
     except:

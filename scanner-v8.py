@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-import math
 Simplified Scanner v8 - Aggressive momentum trading
 """
 
+import math
 import os
 import json
 import time
@@ -284,22 +284,22 @@ def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
             tp_trigger = tp_price
             tp_working = tp_price * 0.99
         
-        # Place STOP Loss order
+        # Place STOP Loss order using Algo API
         sl_side = "SELL" if side == "BUY" else "BUY"
-        sl_params = "symbol={}&side={}&type=STOP_MARKET&stopPrice={}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={}".format(
+        sl_params = "symbol={}&side={}&orderType=STOP&stopPrice={}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={}".format(
             symbol, sl_side, round(sl_trigger, 6), int(time.time() * 1000))
         sl_sig = get_signature(sl_params)
-        sl_url = "https://fapi.binance.com/fapi/v1/order?{}&signature={}".format(sl_params, sl_sig)
+        sl_url = "https://fapi.binance.com/fapi/v1/orderAlg?{}&signature={}".format(sl_params, sl_sig)
         sl_r = requests.post(sl_url, headers=headers, timeout=10)
         if sl_r.status_code != 200:
             print(f"  ⚠️ SL order failed: {sl_r.text[:100]}")
         
-        # Place TAKE PROFIT order
+        # Place TAKE PROFIT order using Algo API
         tp_side = "SELL" if side == "BUY" else "BUY"
-        tp_params = "symbol={}&side={}&type=TAKE_PROFIT_MARKET&stopPrice={}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={}".format(
+        tp_params = "symbol={}&side={}&orderType=STOP&stopPrice={}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={}".format(
             symbol, tp_side, round(tp_trigger, 6), int(time.time() * 1000))
         tp_sig = get_signature(tp_params)
-        tp_url = "https://fapi.binance.com/fapi/v1/order?{}&signature={}".format(tp_params, tp_sig)
+        tp_url = "https://fapi.binance.com/fapi/v1/orderAlg?{}&signature={}".format(tp_params, tp_sig)
         tp_r = requests.post(tp_url, headers=headers, timeout=10)
         if tp_r.status_code != 200:
             print(f"  ⚠️ TP order failed: {tp_r.text[:100]}")
