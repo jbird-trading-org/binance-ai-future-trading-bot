@@ -55,8 +55,9 @@ metadata:
         - TELEGRAM_BOT_TOKEN
         - TELEGRAM_CHANNEL
     startup:
-      command: "cd /root/.openclaw/workspace/neko-futures-trader && nohup bash -c 'while true; do source .env && python3 scanner-v8.py; sleep 300; done' > scanner.log 2>&1 &"
-      type: "background"
+      # Scanner via systemd (recommended)
+      command: "systemctl start neko-scanner neko-monitor || (cp scanner-v8.py price-monitor.py config.py .env advanced_analysis.py error_handling.py delisting_monitor.py signal_filter.py ict_indicators.py whale_tracker.py /root/.openclaw/workspace/neko-futures-trader/ && systemctl daemon-reload && systemctl enable neko-scanner neko-monitor && systemctl start neko-scanner neko-monitor)"
+      type: "service"
 ---
 
 # Neko Futures Trader 🐱📈
@@ -64,22 +65,22 @@ metadata:
 ## Quick Install (For New Agent)
 
 ```bash
-# 1. Navigate to workspace
+# 1. Copy skill files to workspace
+mkdir -p /root/.openclaw/workspace/neko-futures-trader
+cp scanner-v8.py price-monitor.py config.py .env advanced_analysis.py error_handling.py delisting_monitor.py signal_filter.py ict_indicators.py whale_tracker.py /root/.openclaw/workspace/neko-futures-trader/
+
+# 2. Setup .env (copy from skills folder if not exists)
+cp /root/.openclaw/skills/neko-futures-trader/.env /root/.openclaw/workspace/neko-futures-trader/.env 2>/dev/null
+
+# 3. Install systemd services (recommended)
+# See Systemd Services section below
+
+# 4. Or start manually
 cd /root/.openclaw/workspace/neko-futures-trader
-
-# 2. Check files exist
-ls -la *.py *.md
-
-# 3. Verify .env exists
-cat .env | head -3
-
-# 4. Start scanner
 nohup python3 scanner-v8.py &
-
-# 5. Start price monitor
 nohup python3 price-monitor.py &
 
-# 6. Check status
+# 5. Check status
 python3 position_command.py
 ```
 
@@ -166,15 +167,153 @@ neko-futures-trader/
 └── SKILL.md              # This file
 ```
 
+## Systemd Services (Recommended)
+
+All services auto-start on boot and auto-recover on failure.
+
+### Install Services
+```bash
+# Copy script files to workspace
+cp scanner-v8.py price-monitor.py config.py .env /root/.openclaw/workspace/neko-futures-trader/
+cp advanced_analysis.py error_handling.py delisting_monitor.py signal_filter.py ict_indicators.py whale_tracker.py /root/.openclaw/workspace/neko-futures-trader/
+
+# Create scanner service
+cat > /etc/systemd/system/neko-scanner.service << 'EOF'
+[Unit]
+Description=Neko Futures Trader Scanner
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/.openclaw/workspace/neko-futures-trader
+ExecStart=/usr/bin/python3 /root/.openclaw/skills/neko-futures-trader/scanner-v8.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/root/.openclaw/workspace/neko-futures-trader/scanner.log
+StandardError=append:/root/.openclaw/workspace/neko-futures-trader/scanner.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Create monitor service
+cat > /etc/systemd/system/neko-monitor.service << 'EOF'
+[Unit]
+Description=Neko Futures Trader Price Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/.openclaw/workspace/neko-futures-trader
+ExecStart=/usr/bin/python3 /root/.openclaw/skills/neko-futures-trader/price-monitor.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/root/.openclaw/workspace/neko-futures-trader/pm.log
+StandardError=append:/root/.openclaw/workspace/neko-futures-trader/pm.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start
+systemctl daemon-reload
+systemctl enable neko-scanner neko-monitor
+systemctl start neko-scanner neko-monitor
+```
+
+### Service Commands
+```bash
+systemctl status neko-scanner    # Check scanner
+systemctl status neko-monitor    # Check monitor
+systemctl restart neko-scanner   # Restart scanner
+systemctl restart neko-monitor   # Restart monitor
+systemctl stop neko-scanner      # Stop scanner
+systemctl stop neko-monitor      # Stop monitor
+journalctl -u neko-scanner -f    # View scanner logs
+```
+
+---
+
+## Dashboard (Optional)
+
+### Dashboard API Service
+```bash
+cat > /etc/systemd/system/neko-dashboard.service << 'EOF'
+[Unit]
+Description=Neko Futures Trader Dashboard API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/.openclaw/workspace/neko-futures-trader
+ExecStart=/usr/bin/python3 /root/.openclaw/skills/neko-futures-trader/dashboard_api.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/root/.openclaw/workspace/neko-futures-trader/dashboard.log
+StandardError=append:/root/.openclaw/workspace/neko-futures-trader/dashboard.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable neko-dashboard
+systemctl start neko-dashboard
+```
+
+### Nginx Configuration for Dashboard
+```nginx
+server {
+    listen 8443 ssl;
+    server_name YOUR_IP;
+
+    ssl_certificate /etc/nginx/ssl/ssl.crt;
+    ssl_certificate_key /etc/nginx/ssl/ssl.key;
+
+    root /var/www/html;
+
+    location /neko-light.html {
+        try_files /neko-light.html =404;
+    }
+
+    location /api {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    location / {
+        try_files /neko-light.html =404;
+    }
+}
+```
+
+### Copy Static Files
+```bash
+cp /root/.openclaw/skills/neko-futures-trader/neko-light.html /var/www/html/
+```
+
+### Access Dashboard
+- Dashboard: `https://YOUR_IP:8443/neko-light.html`
+- API: `https://YOUR_IP:8443/api`
+
+---
+
 ## Commands
 
-### Start Scanner
+### Start Scanner (manual)
 ```bash
 cd /root/.openclaw/workspace/neko-futures-trader
 nohup python3 scanner-v8.py > scanner.log 2>&1 &
 ```
 
-### Start Price Monitor
+### Start Price Monitor (manual)
 ```bash
 cd /root/.openclaw/workspace/neko-futures-trader
 nohup python3 price-monitor.py > pm.log 2>&1 &

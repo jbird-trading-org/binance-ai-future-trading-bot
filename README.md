@@ -28,6 +28,21 @@ This is a complete trading system for Binance Futures that:
 
 ## 🚀 Quick Start
 
+### Option 1: Systemd (Recommended)
+```bash
+# Copy files to workspace
+mkdir -p /root/.openclaw/workspace/neko-futures-trader
+cp scanner-v8.py price-monitor.py config.py .env advanced_analysis.py error_handling.py delisting_monitor.py signal_filter.py ict_indicators.py whale_tracker.py /root/.openclaw/workspace/neko-futures-trader/
+
+# Install services
+systemctl enable neko-scanner neko-monitor
+systemctl start neko-scanner neko-monitor
+
+# Check status
+python3 /root/.openclaw/workspace/neko-futures-trader/position_command.py
+```
+
+### Option 2: Manual
 ```bash
 # Terminal 1: Scanner (every 5 min)
 cd /root/.openclaw/workspace/neko-futures-trader
@@ -173,13 +188,35 @@ neko-futures-trader/
 
 ## 🔧 Commands
 
-### Start Scanner
+### Systemd Services (Recommended)
+
+All services auto-start on boot and auto-recover on failure.
+
+```bash
+# Enable and start all services
+systemctl enable neko-scanner neko-monitor neko-dashboard
+systemctl start neko-scanner neko-monitor neko-dashboard
+
+# Check status
+systemctl status neko-scanner neko-monitor neko-dashboard
+
+# View logs
+journalctl -u neko-scanner -f
+journalctl -u neko-monitor -f
+journalctl -u neko-dashboard -f
+
+# Restart
+systemctl restart neko-scanner
+systemctl restart neko-monitor
+```
+
+### Start Scanner (Manual)
 ```bash
 cd /root/.openclaw/workspace/neko-futures-trader
 nohup python3 scanner-v8.py > scanner.log 2>&1 &
 ```
 
-### Start Price Monitor
+### Start Price Monitor (Manual)
 ```bash
 cd /root/.openclaw/workspace/neko-futures-trader
 nohup python3 price-monitor.py > pm.log 2>&1 &
@@ -326,7 +363,21 @@ BRAVE_API_KEY=your_brave_key
 
 ## 🆘 Troubleshooting
 
-### Scanner not running?
+### Systemd Services
+```bash
+# Check if running
+systemctl status neko-scanner neko-monitor
+
+# View logs
+journalctl -u neko-scanner -f
+journalctl -u neko-monitor -f
+
+# Restart
+systemctl restart neko-scanner
+systemctl restart neko-monitor
+```
+
+### Manual (non-systemd)
 ```bash
 ps aux | grep scanner-v8
 nohup python3 scanner-v8.py &
@@ -357,7 +408,7 @@ nohup python3 scanner-v8.py &
 
 > **Replace `YOUR_VPS_IP` with your server IP.**
 
-**URL:** `http://YOUR_VPS_IP:8080/neko-light.html`
+**URL:** `https://YOUR_VPS_IP:8443/neko-light.html`
 
 ### Design
 - ⚫ Pure black background — bold minimalist
@@ -371,22 +422,23 @@ nohup python3 scanner-v8.py &
 - 👆 Hover effects + fade-up animations
 - 📱 Responsive mobile layout
 
-### Install for All Users
-```bash
-# Install the skill → dashboard auto-available
-# Any OpenClaw user with this skill installed gets the dashboard
-```
+### Dashboard Installation
 
-### Start Dashboard Server
 ```bash
-cd /root/.openclaw/workspace
-python3 dashboard_api.py &
-# API + HTML server on port 8080
+# 1. Copy static HTML to web root
+cp /root/.openclaw/skills/neko-futures-trader/neko-light.html /var/www/html/
+
+# 2. Setup nginx (HTTPS on port 8443)
+# See nginx config in SKILL.md
+
+# 3. Enable and start dashboard service
+systemctl enable neko-dashboard
+systemctl start neko-dashboard
 ```
 
 ### Dashboard API
 ```
-GET http://YOUR_VPS_IP:8080/api
+GET https://YOUR_VPS_IP:8443/api
 Response: {"bal": float, "pnl": float, "pos": [{"s": symbol, "d": "LONG/SHORT", "e": entry, "m": mark, "u": unreal, "a": amount}]}
 ```
 
