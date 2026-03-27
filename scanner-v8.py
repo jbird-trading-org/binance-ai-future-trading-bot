@@ -330,6 +330,20 @@ def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
     
     return result
 
+def get_algo_orders_sapi():
+    """Query algo orders using SAPI endpoint (works when fapi fails)"""
+    try:
+        ts = int(time.time() * 1000)
+        params = f"timestamp={ts}"
+        sig = get_signature(params)
+        url = f"https://api.binance.com/sapi/v1/algo/futures/openOrders?{params}&signature={sig}"
+        r = requests.get(url, headers={'X-MBX-APIKEY': API_KEY}, timeout=10)
+        if r.status_code == 200:
+            return r.json().get('orders', [])
+    except:
+        pass
+    return []
+
 def check_margin_risk():
     """Check margin and position risk - don't overtrade"""
     ts = int(time.time() * 1000)
