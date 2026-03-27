@@ -285,9 +285,29 @@ def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
             tp_working = tp_price * 0.99
         
         # Place STOP Loss order using Algo API (Binance requires algoOrder endpoint)
+        # Get tickSize for proper price rounding
+        try:
+            info_r = requests.get('https://fapi.binance.com/fapi/v1/exchangeInfo', timeout=10)
+            tick_size = 0.00001  # default
+            for s in info_r.json().get('symbols', []):
+                if s['symbol'] == symbol:
+                    for f in s.get('filters', []):
+                        if f.get('filterType') == 'PRICE_FILTER':
+                            tick_size = float(f.get('tickSize', 0.00001))
+                    break
+        except:
+            tick_size = 0.00001
+        
+        # Round to tickSize
+        def round_to_tick(price, tick):
+            return float(math.floor(price / tick) * tick)
+        
+        sl_trigger_rounded = round_to_tick(sl_trigger, tick_size)
+        tp_trigger_rounded = round_to_tick(tp_trigger, tick_size)
+        
         sl_side = "SELL" if side == "BUY" else "BUY"
         sl_params = "symbol={}&side={}&type=STOP_MARKET&orderType=STOP_MARKET&algoType=CONDITIONAL&quantity=0&triggerPrice={}&stopPrice={}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={}".format(
-            symbol, sl_side, round(sl_trigger, 6), round(sl_trigger, 6), int(time.time() * 1000))
+            symbol, sl_side, sl_trigger_rounded, sl_trigger_rounded, int(time.time() * 1000))
         sl_sig = get_signature(sl_params)
         sl_url = "https://fapi.binance.com/fapi/v1/algoOrder?{}&signature={}".format(sl_params, sl_sig)
         sl_r = requests.post(sl_url, headers=headers, timeout=10)
@@ -297,7 +317,7 @@ def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
         # Place TAKE PROFIT order using Algo API
         tp_side = "SELL" if side == "BUY" else "BUY"
         tp_params = "symbol={}&side={}&type=TAKE_PROFIT_MARKET&orderType=TAKE_PROFIT_MARKET&algoType=CONDITIONAL&quantity=0&triggerPrice={}&stopPrice={}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={}".format(
-            symbol, tp_side, round(tp_trigger, 6), round(tp_trigger, 6), int(time.time() * 1000))
+            symbol, tp_side, tp_trigger_rounded, tp_trigger_rounded, int(time.time() * 1000))
         tp_sig = get_signature(tp_params)
         tp_url = "https://fapi.binance.com/fapi/v1/algoOrder?{}&signature={}".format(tp_params, tp_sig)
         tp_r = requests.post(tp_url, headers=headers, timeout=10)
