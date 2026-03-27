@@ -298,9 +298,13 @@ def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
         except:
             tick_size = 0.00001
         
-        # Round to tickSize
+        # Round to tickSize - use string formatting to avoid float precision issues
         def round_to_tick(price, tick):
-            return float(math.floor(price / tick) * tick)
+            # Calculate number of decimals from tickSize
+            tick_str = f"{tick:.10f}".rstrip('0')
+            decimals = len(tick_str.split('.')[1]) if '.' in tick_str else 0
+            # Round price to that many decimals
+            return float(f"{price:.{decimals}f}")
         
         sl_trigger_rounded = round_to_tick(sl_trigger, tick_size)
         tp_trigger_rounded = round_to_tick(tp_trigger, tick_size)
@@ -1020,7 +1024,7 @@ def main():
         return
     
     if open_count >= MAX_POSITIONS:
-        print("⚠️ Max positions reached")
+        print("⚠️ Max positions reached - waiting...")
         return
     
     # Get all tickers
@@ -1183,4 +1187,10 @@ def main():
     print(f"\n✅ Scan complete!")
 
 if __name__ == "__main__":
-    main()
+    while True:
+        try:
+            main()
+        except Exception as e:
+            print(f"Error: {e}")
+        print("Sleeping 60s before next scan...")
+        time.sleep(60)
