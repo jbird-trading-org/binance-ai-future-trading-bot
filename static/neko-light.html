@@ -60,7 +60,7 @@ body{
 .btn-eye.active{background:rgba(255,210,59,.1);border-color:var(--yellow)}
 
 /* ── BALANCE ── */
-.balance-section{margin-bottom:28px}
+.balance-section{margin-bottom:20px}
 .bal-label{
   font-size:9px;text-transform:uppercase;letter-spacing:2.5px;
   color:var(--muted);margin-bottom:6px;font-weight:700;
@@ -74,6 +74,31 @@ body{
   font-size:13px;font-weight:700;margin-top:6px;
   color:var(--green);
 }
+
+/* ── STATS ROW ── */
+.stats-row{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:8px;
+  margin-bottom:20px;
+}
+.stat-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:12px;
+  text-align:center;
+}
+.stat-card .label{
+  font-size:8px;text-transform:uppercase;letter-spacing:1.5px;
+  color:var(--muted);margin-bottom:6px;font-weight:700;
+}
+.stat-card .value{
+  font-size:18px;font-weight:900;
+}
+.stat-card .value.green{color:var(--green)}
+.stat-card .value.red{color:var(--red)}
+.stat-card .value.yellow{color:var(--yellow)}
 
 /* ── TOP 3 ── */
 .section-label{
@@ -195,6 +220,8 @@ body{
   font-size:9px;color:var(--muted);
 }
 .status span{color:var(--green)}
+.status-algo{color:var(--muted)}
+.status-algo.active{color:var(--green)}
 
 /* ── ANIMATIONS ── */
 @keyframes fadeUp{
@@ -220,6 +247,7 @@ body{
   .td,.th span{padding:9px 0;font-size:9px}
   .t3 .roi{font-size:16px}
   .t3 .sym{font-size:12px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
 }
 </style>
 </head>
@@ -237,6 +265,26 @@ body{
   <div class="bal-label">Total Balance</div>
   <div class="bal-value blur" id="bal">$--</div>
   <div class="bal-pnl" id="pnl">+-- USDT</div>
+</div>
+
+<!-- Stats Row -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="label">Win Rate</div>
+    <div class="value yellow" id="winrate">--%</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Closed PnL</div>
+    <div class="value" id="closedPnl">$--</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Avg Win</div>
+    <div class="value green" id="avgWin">$--</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Avg Loss</div>
+    <div class="value red" id="avgLoss">$--</div>
+  </div>
 </div>
 
 <div class="top3" id="top3"></div>
@@ -259,6 +307,7 @@ body{
 <div class="status">
   <div>🔍 Scanner <span>Active</span></div>
   <div>⏱ Monitor <span>Active</span></div>
+  <div>📊 Algo SL/TP <span id="algoStatus" class="status-algo">Checking...</span></div>
   <div>built by <strong style="color:var(--yellow)">Neko Sentinel</strong> 🐱</div>
 </div>
 
@@ -323,6 +372,40 @@ async function load() {
   const pnlEl = document.getElementById('pnl');
   pnlEl.textContent = (pnl>=0?'+':'') + '$' + pnl.toFixed(2) + ' USDT';
   pnlEl.style.color = pnl>=0 ? 'var(--green)' : 'var(--red)';
+
+  // Stats from income history
+  const stats = data.stats || {};
+  const winrate = stats.winrate || 0;
+  const closedPnl = stats.closed_pnl || 0;
+  const avgWin = stats.avg_win || 0;
+  const avgLoss = stats.avg_loss || 0;
+  
+  document.getElementById('winrate').textContent = winrate.toFixed(1) + '%';
+  const closedPnlEl = document.getElementById('closedPnl');
+  closedPnlEl.textContent = (closedPnl>=0?'+':'') + '$' + closedPnl.toFixed(2);
+  closedPnlEl.style.color = closedPnl >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('avgWin').textContent = '$' + avgWin.toFixed(2);
+  document.getElementById('avgLoss').textContent = '$' + avgLoss.toFixed(2);
+  
+  // Winrate color based on value
+  const winrateEl = document.getElementById('winrate');
+  if (winrate >= 50) {
+    winrateEl.style.color = 'var(--green)';
+  } else if (winrate >= 40) {
+    winrateEl.style.color = 'var(--yellow)';
+  } else {
+    winrateEl.style.color = 'var(--red)';
+  }
+
+  // Algo orders status
+  const algoEl = document.getElementById('algoStatus');
+  if (data.algo && data.algo.has_algo) {
+    algoEl.textContent = data.algo.count + ' Active';
+    algoEl.className = 'status-algo active';
+  } else {
+    algoEl.textContent = 'None';
+    algoEl.className = 'status-algo';
+  }
 
   const pos = data.pos||[];
   document.getElementById('cnt');
