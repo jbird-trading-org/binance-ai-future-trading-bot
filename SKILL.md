@@ -162,6 +162,22 @@ journalctl -u neko-scanner -f
 | BREAKEVEN | +5% | Move SL to entry |
 | TRAILING | +10% | Activate trailing |
 
+### ATR-Based System
+
+**ATR (Average True Range)** measures market volatility. Our SL/TP adapts to market conditions:
+
+| Market | ATR Range | SL | TP |
+|--------|-----------|-----|-----|
+| HIGH | > 10% | 3× ATR | 6× ATR |
+| NORMAL | 5-10% | 2.5× ATR | 5× ATR |
+| LOW | < 5% | 2× ATR | 4× ATR |
+
+**Example:** Entry $100, ATR $2
+- HIGH: SL=$94, TP=$112 (wider for volatility)
+- LOW: SL=$96, TP=$108 (tighter for calm markets)
+
+**Advantages:** Adaptive, noise-filtering, dynamic adjustment
+
 ### SL/TP (ATR-based)
 | Vol | SL | TP |
 |-----|----|----|

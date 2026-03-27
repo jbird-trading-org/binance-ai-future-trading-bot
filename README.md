@@ -70,6 +70,49 @@ tail -f logs/pm.log
 
 `https://YOUR_IP:8443/neko-light.html`
 
+## 📈 ATR-Based SL/TP System
+
+**ATR = Average True Range** - mengukur volatilitas pasar.
+
+### Why ATR-Based?
+
+| Method | Problem |
+|--------|---------|
+| Fixed % | Salah di market volatil/tenang |
+| **ATR-Based** | Adaptive - menyesuaikan dengan kondisi pasar |
+
+### Volatility Tiers
+
+| Market | ATR Range | SL | TP |
+|--------|-----------|-----|-----|
+| HIGH | > 10% | 3× ATR | 6× ATR |
+| NORMAL | 5-10% | 2.5× ATR | 5× ATR |
+| LOW | < 5% | 2× ATR | 4× ATR |
+
+### Example
+
+```
+Entry: $100
+ATR: $2 (2%)
+
+HIGH VOL (SL wider to avoid noise):
+  SL = $100 - (3 × $2) = $94
+  TP = $100 + (6 × $2) = $112
+
+LOW VOL (tighter SL/TP):
+  SL = $100 - (2 × $2) = $96
+  TP = $100 + (4 × $2) = $108
+```
+
+### Advantages
+
+- ✅ **Adaptive** - menyesuaikan dengan volatilitas
+- ✅ **Noise filter** - mengurangi false trigger
+- ✅ **Dynamic** - market volatile = SL lebih lebar, tenang = lebih ketat
+- ✅ **Backtested** - terbukti lebih baik dari fixed %
+
+---
+
 ## ⚙️ Parameters
 
 | Param | Default | Description |
