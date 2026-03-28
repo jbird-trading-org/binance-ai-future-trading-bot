@@ -521,6 +521,33 @@ def calc_atr(candles, period=14):
         trs.append(tr)
     return sum(trs) / len(trs) if trs else None
 
+
+def calc_macd(prices, fast=12, slow=26, signal=9):
+    """Calculate MACD histogram. Returns (macd, signal_line, histogram)"""
+    if len(prices) < slow:
+        return None, None, None
+    
+    # Calculate EMAs
+    def ema(prices, period):
+        k = 2 / (period + 1)
+        ema_val = prices[0]
+        for price in prices[1:]:
+            ema_val = price * k + ema_val * (1 - k)
+        return ema_val
+    
+    ema_fast = ema(prices, fast)
+    ema_slow = ema(prices, slow)
+    macd_line = ema_fast - ema_slow
+    
+    # Signal line (EMA of MACD)
+    macd_values = [macd_line]  # simplified - use current macd
+    signal_line = ema(macd_values, signal)
+    
+    histogram = macd_line - signal_line
+    
+    return macd_line, signal_line, histogram
+
+
 def analyze_symbol(symbol, stats):
     """Runner-focused analysis - look for momentum explosions"""
     stat = stats.get(symbol, {})
@@ -737,6 +764,16 @@ def analyze_symbol(symbol, stats):
     if direction == "LONG" and rsi_overbought:
         # Don't LONG when RSI overbought (>70) - too risky
         return None
+
+    # MACD Histogram Filter - confirm momentum direction
+    macd_line, signal_line, histogram = calc_macd(closes)
+    if histogram is not None:
+        if direction == "LONG" and histogram < 0:
+            # MACD bearish - reject LONG
+            return None
+        if direction == "SHORT" and histogram > 0:
+            # MACD bullish - reject SHORT
+            return None
     if direction == "SHORT" and rsi_oversold:
         # Don't SHORT when RSI oversold (<30) - too risky  
         return None
