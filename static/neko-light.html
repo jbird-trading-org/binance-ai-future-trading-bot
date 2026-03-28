@@ -3,46 +3,84 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Neko Trading - Automated Futures Trading Dashboard">
-<meta name="theme-color" content="#07080d">
+<meta name="description" content="Neko Trading - Professional Futures Dashboard">
+<meta name="theme-color" content="#0a0a0f">
 <title>Neko Trading | Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #07080d;
-  --surface: #0d0f1a;
-  --surface2: #12142a;
-  --border: #1c1e38;
-  --border-light: #252844;
+  --bg: #0a0a0f;
+  --surface: rgba(15, 17, 23, 0.8);
+  --surface2: rgba(22, 25, 35, 0.9);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-light: rgba(255, 255, 255, 0.1);
+  
+  --cyan: #00d4ff;
+  --cyan-glow: rgba(0, 212, 255, 0.15);
+  --cyan-dim: rgba(0, 212, 255, 0.4);
+  
   --red: #ff3b5c;
-  --red-bg: rgba(255,59,92,0.1);
-  --blue: #3b8bff;
-  --blue-bg: rgba(59,139,255,0.1);
-  --yellow: #ffd23b;
-  --yellow-bg: rgba(255,210,59,0.1);
-  --green: #2bffb8;
-  --green-bg: rgba(43,255,184,0.1);
-  --text: #d0d4f0;
-  --muted: #6b7199;
-  --dim: #4a4f7a;
-  --radius: 8px;
-  --shadow: 0 2px 12px rgba(0,0,0,0.3);
-  --transition: all 0.25s ease;
+  --red-bg: rgba(255, 59, 92, 0.12);
+  --green: #00ff88;
+  --green-bg: rgba(0, 255, 136, 0.12);
+  
+  --text: #f0f4f8;
+  --text-dim: rgba(240, 244, 248, 0.5);
+  --text-muted: rgba(240, 244, 248, 0.3);
+  
+  --radius: 16px;
+  --radius-sm: 10px;
+  
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 40px var(--cyan-glow);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 13px; scroll-behavior: smooth; }
+
+html { font-size: 14px; scroll-behavior: smooth; }
+
 body {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Animated gradient background */
+body::before {
+  content: '';
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: 
+    radial-gradient(ellipse at 20% 20%, rgba(0, 212, 255, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(255, 59, 92, 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(0, 255, 136, 0.01) 0%, transparent 60%);
+  animation: bgShift 20s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes bgShift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(-2%, 2%) rotate(1deg); }
+  66% { transform: translate(2%, -2%) rotate(-1deg); }
 }
 
 .container {
   max-width: 900px;
   margin: 0 auto;
-  padding: 12px 12px 60px;
+  padding: 24px 20px 80px;
 }
 
 /* ── Header ── */
@@ -50,108 +88,136 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 24px;
+  animation: fadeDown 0.6s ease-out;
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .logo-icon {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, var(--yellow), var(--red));
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, var(--cyan) 0%, #0099cc 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  box-shadow: var(--shadow), 0 0 30px var(--cyan-glow);
+  transition: all 0.3s ease;
+}
+
+.logo:hover .logo-icon {
+  transform: scale(1.05) rotate(3deg);
+  box-shadow: var(--shadow), 0 0 50px var(--cyan-glow);
+}
+
+.logo-text {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.logo-text span { color: var(--text-dim); }
+
+.toggle-btn {
+  width: 44px;
+  height: 44px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  transition: var(--transition);
-}
-
-.logo:hover .logo-icon {
-  transform: scale(1.05);
-  box-shadow: 0 0 20px rgba(255,210,59,0.3);
-}
-
-.logo-text {
-  font-size: 15px;
-  font-weight: 900;
-  letter-spacing: -0.3px;
-}
-
-.logo-text span { color: var(--dim); }
-
-.toggle-btn {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--muted);
-  transition: var(--transition);
+  transition: all 0.25s ease;
+  backdrop-filter: blur(10px);
 }
 
 .toggle-btn:hover {
-  border-color: var(--yellow);
-  color: var(--yellow);
-  background: var(--surface);
+  border-color: var(--cyan);
+  box-shadow: 0 0 20px var(--cyan-glow);
+  transform: scale(1.05);
 }
 
 .toggle-btn.active {
-  background: var(--yellow-bg);
-  border-color: var(--yellow);
-  color: var(--yellow);
+  background: var(--cyan-glow);
+  border-color: var(--cyan);
 }
 
-/* ── Balance Card ── */
+/* ── Balance Card (Glassmorphism) ── */
 .balance-card {
   background: var(--surface);
+  backdrop-filter: blur(20px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 12px;
-  transition: var(--transition);
-  animation: fadeIn 0.5s ease-out;
+  padding: 28px 24px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp 0.6s ease-out 0.1s both;
 }
 
-.balance-card:hover {
-  border-color: var(--border-light);
-  box-shadow: var(--shadow);
+.balance-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan-dim), transparent);
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .balance-label {
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: var(--muted);
-  font-weight: 700;
-  margin-bottom: 4px;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 8px;
 }
 
 .balance-value {
-  font-size: 32px;
-  font-weight: 900;
-  letter-spacing: -1px;
-  line-height: 1.1;
-  transition: filter 0.3s ease, var(--transition);
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -2px;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--text) 0%, var(--text-dim) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  transition: all 0.5s ease;
 }
 
-.balance-value.blur { filter: blur(10px); }
+.balance-value.blur {
+  filter: blur(12px);
+  user-select: none;
+}
 
 .balance-pnl {
-  font-size: 13px;
-  font-weight: 700;
-  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 10px;
   color: var(--green);
-  transition: var(--transition);
+  transition: all 0.3s ease;
 }
 
 .balance-pnl.negative { color: var(--red); }
@@ -160,90 +226,97 @@ body {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .stat-box {
   background: var(--surface);
+  backdrop-filter: blur(20px);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  padding: 16px 12px;
   text-align: center;
-  transition: var(--transition);
-  animation: fadeUp 0.4s ease-out both;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp 0.5s ease-out both;
+}
+
+.stat-box:nth-child(1) { animation-delay: 0.15s; }
+.stat-box:nth-child(2) { animation-delay: 0.2s; }
+.stat-box:nth-child(3) { animation-delay: 0.25s; }
+.stat-box:nth-child(4) { animation-delay: 0.3s; }
+
+.stat-box::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--border-light), transparent);
 }
 
 .stat-box:hover {
   border-color: var(--border-light);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   box-shadow: var(--shadow);
 }
 
-.stat-box:nth-child(1) { animation-delay: 0.1s; }
-.stat-box:nth-child(2) { animation-delay: 0.15s; }
-.stat-box:nth-child(3) { animation-delay: 0.2s; }
-.stat-box:nth-child(4) { animation-delay: 0.25s; }
-
 .stat-label {
-  font-size: 8px;
+  font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--muted);
-  margin-bottom: 4px;
-  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-weight: 600;
 }
 
 .stat-value {
-  font-size: 15px;
-  font-weight: 900;
-  line-height: 1.2;
-  transition: var(--transition);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  transition: all 0.3s ease;
 }
 
 .stat-value.g { color: var(--green); }
 .stat-value.r { color: var(--red); }
-.stat-value.y { color: var(--yellow); }
+.stat-value.c { color: var(--cyan); }
 
-/* ── Section ── */
-.section { margin-bottom: 12px; }
-
+/* ── Section Header ── */
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
-  gap: 8px;
+  margin-bottom: 12px;
+  padding: 0 4px;
 }
 
 .section-title {
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: var(--muted);
+  letter-spacing: 2px;
+  color: var(--text-muted);
   font-weight: 700;
 }
 
 .refresh-btn {
-  width: 28px;
-  height: 28px;
-  background: var(--surface2);
+  width: 32px;
+  height: 32px;
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  color: var(--muted);
-  transition: var(--transition);
-  flex-shrink: 0;
+  font-size: 15px;
+  transition: all 0.25s ease;
 }
 
 .refresh-btn:hover {
-  border-color: var(--yellow);
-  color: var(--yellow);
-  background: var(--surface);
+  border-color: var(--cyan);
   transform: scale(1.1);
 }
 
@@ -251,179 +324,181 @@ body {
   transform: scale(0.95);
 }
 
-@keyframes spin { 
-  to { transform: rotate(360deg); } 
-}
-
-.spinning {
-  animation: spin 0.7s linear infinite;
-}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinning { animation: spin 0.7s linear infinite; }
 
 /* ── Top Performers ── */
 .performers {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 12px;
+  margin-bottom: 24px;
 }
 
 .performer {
   background: var(--surface);
+  backdrop-filter: blur(20px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 12px 10px;
-  transition: var(--transition);
-  animation: fadeUp 0.4s ease-out both;
+  padding: 18px 14px;
+  transition: all 0.35s ease;
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp 0.5s ease-out both;
 }
+
+.performer:nth-child(1) { animation-delay: 0.2s; }
+.performer:nth-child(2) { animation-delay: 0.28s; }
+.performer:nth-child(3) { animation-delay: 0.36s; }
 
 .performer:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow);
+  transform: translateY(-5px) scale(1.02);
   border-color: var(--border-light);
+  box-shadow: var(--shadow);
 }
 
-.performer:nth-child(1) { animation-delay: 0s; }
-.performer:nth-child(2) { animation-delay: 0.08s; }
-.performer:nth-child(3) { animation-delay: 0.16s; }
+.performer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.performer:nth-child(1)::before { background: linear-gradient(90deg, #ffd700, #ffb700); }
+.performer:nth-child(2)::before { background: linear-gradient(90deg, #c0c0c0, #a0a0a0); }
+.performer:nth-child(3)::before { background: linear-gradient(90deg, #cd7f32, #a0522d); }
 
 .performer-rank {
-  font-size: 18px;
-  font-weight: 900;
-  margin-bottom: 4px;
-  transition: var(--transition);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 6px;
 }
 
-.performer-rank.gold { color: var(--yellow); }
-.performer-rank.silver { color: #9099b8; }
-.performer-rank.bronze { color: #b87050; }
+.performer-rank.gold { color: #ffd700; text-shadow: 0 0 20px rgba(255, 215, 0, 0.3); }
+.performer-rank.silver { color: #c0c0c0; }
+.performer-rank.bronze { color: #cd7f32; }
 
 .performer-sym {
-  font-size: 13px;
-  font-weight: 800;
-  margin-bottom: 2px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 4px;
 }
 
 .performer-dir {
-  font-size: 7px;
-  font-weight: 800;
+  font-size: 8px;
+  font-weight: 700;
   text-transform: uppercase;
-  padding: 2px 5px;
-  border-radius: 4px;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 6px;
   display: inline-block;
-  margin-bottom: 6px;
-  transition: var(--transition);
+  margin-bottom: 10px;
 }
 
-.performer-dir.long { color: var(--blue); background: var(--blue-bg); }
-.performer-dir.short { color: var(--red); background: var(--red-bg); }
+.performer-dir.long { background: rgba(0, 212, 255, 0.15); color: var(--cyan); }
+.performer-dir.short { background: var(--red-bg); color: var(--red); }
 
 .performer-roi {
-  font-size: 18px;
-  font-weight: 900;
-  line-height: 1;
-  transition: var(--transition);
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  transition: all 0.3s ease;
 }
 
 .performer-roi.pos { color: var(--green); }
-.performer-roi.neg.long { color: var(--blue); }
-.performer-roi.neg.short { color: var(--red); }
+.performer-roi.neg { color: var(--red); }
 
 /* ── Positions Table ── */
 .positions {
   background: var(--surface);
+  backdrop-filter: blur(20px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  transition: var(--transition);
+  animation: fadeUp 0.5s ease-out 0.4s both;
 }
 
 .pos-header {
-  display: flex;
-  padding: 8px 12px;
-  background: var(--surface2);
+  display: grid;
+  grid-template-columns: 50px 44px 1fr 60px 60px 54px 54px 52px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.3);
   border-bottom: 1px solid var(--border);
-  gap: 4px;
 }
 
 .pos-header span {
-  font-size: 7px;
+  font-size: 8px;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--dim);
-  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
   text-align: right;
-  transition: var(--transition);
+  font-weight: 700;
 }
 
-.pos-header span:first-child { text-align: left; width: 52px; flex-shrink: 0; }
-.pos-header span:nth-child(2) { width: 44px; flex-shrink: 0; }
-.pos-header span:nth-child(3) { flex: 1; text-align: left; }
-.pos-header span:nth-child(4) { width: 58px; flex-shrink: 0; }
-.pos-header span:nth-child(5) { width: 58px; flex-shrink: 0; }
-.pos-header span:nth-child(6) { width: 54px; flex-shrink: 0; }
-.pos-header span:nth-child(7) { width: 54px; flex-shrink: 0; }
-.pos-header span:nth-child(8) { width: 52px; flex-shrink: 0; }
+.pos-header span:first-child { text-align: left; }
 
 .pos-row {
-  display: flex;
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(28,30,56,0.5);
-  transition: var(--transition);
-  gap: 4px;
-  animation: fadeUp 0.3s ease-out both;
+  display: grid;
+  grid-template-columns: 50px 44px 1fr 60px 60px 54px 54px 52px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  transition: all 0.2s ease;
+  animation: fadeIn 0.3s ease-out both;
 }
 
 .pos-row:last-child { border-bottom: none; }
-.pos-row:hover { background: var(--surface2); }
+.pos-row:hover { background: rgba(255, 255, 255, 0.02); }
 
-.pos-row.long { border-left: 3px solid var(--blue); padding-left: 9px; }
-.pos-row.short { border-left: 3px solid var(--red); padding-left: 9px; }
+.pos-row.long { border-left: 3px solid var(--cyan); }
+.pos-row.short { border-left: 3px solid var(--red); }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
 .pos-cell {
+  font-family: var(--font-mono);
   font-size: 10px;
   text-align: right;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  transition: var(--transition);
 }
 
 .pos-cell.sym {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
   text-align: left;
-  font-size: 11px;
-  font-weight: 800;
-  justify-content: flex-start;
-  width: 52px;
-  flex-shrink: 0;
-}
-
-.pos-cell:nth-child(2) {
-  width: 44px;
-  flex-shrink: 0;
   justify-content: flex-start;
 }
 
-.pos-cell:nth-child(3) { flex: 1; justify-content: flex-start; }
-.pos-cell:nth-child(4) { width: 58px; flex-shrink: 0; }
-.pos-cell:nth-child(5) { width: 58px; flex-shrink: 0; }
-.pos-cell:nth-child(6) { width: 54px; flex-shrink: 0; color: var(--red); font-size: 9px; font-weight: 600; }
-.pos-cell:nth-child(7) { width: 54px; flex-shrink: 0; color: var(--green); font-size: 9px; font-weight: 600; }
-.pos-cell:nth-child(8) { width: 52px; flex-shrink: 0; }
-
-.badge {
+.pos-badge {
   font-size: 7px;
-  font-weight: 800;
-  padding: 2px 5px;
-  border-radius: 4px;
-  transition: var(--transition);
+  font-weight: 700;
+  padding: 3px 6px;
+  border-radius: 5px;
 }
 
-.badge.long { background: var(--blue-bg); color: var(--blue); }
-.badge.short { background: var(--red-bg); color: var(--red); }
+.pos-badge.long { background: var(--cyan-glow); color: var(--cyan); }
+.pos-badge.short { background: var(--red-bg); color: var(--red); }
 
-.price { color: var(--muted); font-size: 9px; }
-.price.current { color: var(--text); font-weight: 600; }
+.price { color: var(--text-dim); font-size: 9px; }
+.price.current { color: var(--text); font-weight: 500; }
+.sl { color: var(--red); font-size: 9px; }
+.tp { color: var(--green); font-size: 9px; }
 
-.roi { font-size: 10px; font-weight: 800; transition: var(--transition); }
+.roi {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+}
 .roi.g { color: var(--green); }
 .roi.r { color: var(--red); }
 
@@ -433,88 +508,64 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(13,15,26,0.95);
+  background: rgba(10, 10, 15, 0.95);
+  backdrop-filter: blur(20px);
   border-top: 1px solid var(--border);
-  padding: 8px 12px;
+  padding: 10px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 8px;
-  color: var(--dim);
-  backdrop-filter: blur(8px);
+  color: var(--text-muted);
   z-index: 100;
-  transition: var(--transition);
 }
 
 .status-item span { color: var(--green); }
-.algo-status { color: var(--dim); }
+.algo-status { color: var(--text-muted); }
 .algo-status.active { color: var(--green); }
 
-/* ── Animations ── */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
 /* ── Responsive ── */
-@media (max-width: 540px) {
-  html { font-size: 12px; }
-  .balance-value { font-size: 28px; }
+@media (max-width: 560px) {
+  html { font-size: 13px; }
+  
+  .balance-value { font-size: 36px; }
   
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
+    gap: 10px;
   }
   
-  .stat-box { padding: 8px 6px; }
-  .stat-box:hover { transform: translateY(-1px); }
-  .stat-value { font-size: 14px; }
+  .stat-box { padding: 14px 10px; }
+  .stat-value { font-size: 18px; }
   
-  .performers { gap: 6px; }
-  .performer { padding: 10px 8px; }
-  .performer:hover { transform: translateY(-2px); }
-  .performer-roi { font-size: 16px; }
+  .performers { gap: 10px; }
+  .performer { padding: 14px 12px; }
+  .performer-roi { font-size: 20px; }
   
-  .pos-header, .pos-row { padding: 6px 8px; gap: 2px; }
-  
-  .pos-header span:first-child { width: 44px; }
-  .pos-header span:nth-child(2) { width: 38px; }
-  .pos-header span:nth-child(4), .pos-header span:nth-child(5) { width: 48px; }
-  .pos-header span:nth-child(6), .pos-header span:nth-child(7) { width: 46px; }
-  .pos-header span:nth-child(8) { width: 44px; }
-  
-  .pos-cell.sym { width: 44px; font-size: 10px; }
-  .pos-cell:nth-child(2) { width: 38px; }
-  .pos-cell:nth-child(4), .pos-cell:nth-child(5) { width: 48px; }
-  .pos-cell:nth-child(6), .pos-cell:nth-child(7) { width: 46px; font-size: 8px; }
-  .pos-cell:nth-child(8) { width: 44px; }
-  
-  .refresh-btn { width: 26px; height: 26px; font-size: 13px; }
+  .pos-header, .pos-row {
+    grid-template-columns: 42px 38px 1fr 50px 50px 46px 46px 44px;
+    padding: 8px 10px;
+  }
   
   .status-bar {
     font-size: 7px;
-    padding: 6px 10px;
+    padding: 8px 12px;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 6px;
   }
 }
 
 @media (max-width: 380px) {
-  .logo-text { font-size: 13px; }
-  .logo-icon { width: 32px; height: 32px; font-size: 16px; }
-  .balance-value { font-size: 24px; }
-  .toggle-btn { padding: 8px 12px; font-size: 12px; }
+  .logo-text { font-size: 15px; }
+  .logo-icon { width: 38px; height: 38px; }
+  .balance-value { font-size: 30px; }
 }
 </style>
 </head>
 <body>
 
 <div class="container">
+  <!-- Header -->
   <header class="hdr">
     <div class="logo">
       <div class="logo-icon">🐱</div>
@@ -523,16 +574,18 @@ body {
     <button class="toggle-btn" id="togBtn" onclick="toggleAll()">👁️</button>
   </header>
 
+  <!-- Balance -->
   <div class="balance-card">
     <div class="balance-label">Total Balance</div>
     <div class="balance-value blur" id="bal">$--</div>
     <div class="balance-pnl" id="pnl">+-- USDT</div>
   </div>
 
+  <!-- Stats -->
   <div class="stats-grid" id="statsGrid">
     <div class="stat-box">
       <div class="stat-label">Win Rate</div>
-      <div class="stat-value y" id="winrate">--%</div>
+      <div class="stat-value c" id="winrate">--%</div>
     </div>
     <div class="stat-box">
       <div class="stat-label">Closed PnL</div>
@@ -548,42 +601,42 @@ body {
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-header">
-      <div class="section-title">Top Performers</div>
-    </div>
-    <div class="performers" id="performers"></div>
+  <!-- Top Performers -->
+  <div class="section-header">
+    <div class="section-title">Top Performers</div>
   </div>
+  <div class="performers" id="performers"></div>
 
-  <div class="section">
-    <div class="section-header">
-      <div class="section-title">Open Positions</div>
-      <button class="refresh-btn" id="refreshBtn" onclick="load()">🔄</button>
+  <!-- Open Positions -->
+  <div class="section-header">
+    <div class="section-title">Open Positions</div>
+    <button class="refresh-btn" id="refreshBtn" onclick="load()">🔄</button>
+  </div>
+  <div class="positions">
+    <div class="pos-header">
+      <span>Symbol</span>
+      <span>Dir</span>
+      <span></span>
+      <span>Entry</span>
+      <span>Now</span>
+      <span>SL</span>
+      <span>TP</span>
+      <span>ROI</span>
     </div>
-    <div class="positions">
-      <div class="pos-header">
-        <span>Symbol</span>
-        <span>Dir</span>
-        <span></span>
-        <span>Entry</span>
-        <span>Now</span>
-        <span>SL</span>
-        <span>TP</span>
-        <span>ROI</span>
-      </div>
-      <div id="positions"></div>
-    </div>
+    <div id="positions"></div>
   </div>
 </div>
 
+<!-- Status Bar -->
 <div class="status-bar">
   <div class="status-item">🔍 Scanner <span>Active</span></div>
   <div class="status-item">⏱ Monitor <span>Active</span></div>
-  <div class="status-item algo-status" id="algoStatus">📊 Algo SL/TP: --</div>
-  <div>Built by <strong style="color:var(--yellow)">Neko Sentinel</strong> 🐱</div>
+  <div class="status-item algo-status" id="algoStatus">📊 Algo: --</div>
+  <div>Built by <strong style="color:var(--cyan)">Neko Sentinel</strong> 🐱</div>
 </div>
 
 <script>
+// State
 let allHidden = true;
 
 function toggleAll() {
@@ -606,6 +659,7 @@ function toggleAll() {
   }
 }
 
+// Helpers
 function roi(p) {
   const n = Math.abs(p.e * p.a);
   return n > 0 ? (p.u / n) * 100 : 0;
@@ -624,6 +678,26 @@ function fmtROI(v) {
 function sl(p) { return p.d === 'LONG' ? p.e * 0.95 : p.e * 1.05; }
 function tp(p) { return p.d === 'LONG' ? p.e * 1.10 : p.e * 0.90; }
 
+// Animate number
+function animateValue(el, value, prefix = '', suffix = '', decimals = 2) {
+  const start = parseFloat(el.textContent.replace(/[^0-9.-]/g, '')) || 0;
+  const end = typeof value === 'number' ? value : parseFloat(value) || 0;
+  const duration = 600;
+  const startTime = performance.now();
+  
+  function update(currentTime) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const easeOut = 1 - Math.pow(1 - progress, 3);
+    const current = start + (end - start) * easeOut;
+    el.textContent = prefix + current.toFixed(decimals) + suffix;
+    if (progress < 1) requestAnimationFrame(update);
+  }
+  
+  requestAnimationFrame(update);
+}
+
+// Load data
 let loading = false;
 
 async function load() {
@@ -632,7 +706,6 @@ async function load() {
   
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('spinning');
-  btn.textContent = '🔄';
 
   let data;
   try {
@@ -641,35 +714,36 @@ async function load() {
   } catch (e) {
     loading = false;
     btn.classList.remove('spinning');
-    btn.textContent = '🔄';
     return;
   }
 
   if (!allHidden) document.getElementById('bal').classList.remove('blur');
-  document.getElementById('bal').textContent = '$' + (data.bal || 0).toFixed(2);
+  
+  // Animate balance
+  animateValue(document.getElementById('bal'), data.bal || 0, '$', '', 2);
   
   const pnl = data.pnl || 0;
   const pnlEl = document.getElementById('pnl');
   pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2) + ' USDT';
   pnlEl.className = 'balance-pnl' + (pnl < 0 ? ' negative' : '');
 
+  // Stats
   const stats = data.stats || {};
   const winrate = stats.winrate || 0;
   const closedPnl = stats.closed_pnl || 0;
   const avgWin = stats.avg_win || 0;
   const avgLoss = stats.avg_loss || 0;
 
+  animateValue(document.getElementById('winrate'), winrate, '', '%', 1);
+  animateValue(document.getElementById('closedPnl'), closedPnl, (closedPnl >= 0 ? '+' : '$'), '', 2);
+  animateValue(document.getElementById('avgWin'), avgWin, '$', '', 2);
+  animateValue(document.getElementById('avgLoss'), avgLoss, '$', '', 2);
+
+  // Color winrate based on value
   const wrEl = document.getElementById('winrate');
-  wrEl.textContent = winrate.toFixed(1) + '%';
-  wrEl.className = 'stat-value ' + (winrate >= 50 ? 'g' : winrate >= 40 ? 'y' : 'r');
+  wrEl.className = 'stat-value ' + (winrate >= 50 ? 'g' : winrate >= 40 ? 'c' : 'r');
 
-  const cpEl = document.getElementById('closedPnl');
-  cpEl.textContent = (closedPnl >= 0 ? '+' : '') + '$' + closedPnl.toFixed(2);
-  cpEl.className = 'stat-value ' + (closedPnl >= 0 ? 'g' : 'r');
-
-  document.getElementById('avgWin').textContent = '$' + avgWin.toFixed(2);
-  document.getElementById('avgLoss').textContent = '$' + avgLoss.toFixed(2);
-
+  // Algo status
   const algoEl = document.getElementById('algoStatus');
   if (data.algo && data.algo.has_algo) {
     algoEl.textContent = '📊 Algo: ' + data.algo.count + ' active';
@@ -681,6 +755,7 @@ async function load() {
 
   const pos = data.pos || [];
 
+  // Top performers
   const sorted = [...pos].sort((a, b) => roi(b) - roi(a)).slice(0, 3);
   const medals = ['gold', 'silver', 'bronze'];
   const nums = ['①', '②', '③'];
@@ -689,18 +764,18 @@ async function load() {
     const r = roi(p);
     const isLong = p.d === 'LONG';
     const isWin = r > 0;
-    const roiClass = isWin ? 'pos' : (isLong ? 'neg long' : 'neg short');
     return `<div class="performer">
       <div class="performer-rank ${medals[i]}">${nums[i]}</div>
       <div class="performer-sym">${p.s}</div>
       <div class="performer-dir ${isLong ? 'long' : 'short'}">${p.d}</div>
-      <div class="performer-roi ${roiClass}">${fmtROI(r)}</div>
+      <div class="performer-roi ${isWin ? 'pos' : 'neg'}">${fmtROI(r)}</div>
     </div>`;
-  }).join('') : '<div style="color:var(--muted);padding:12px;text-align:center">No positions</div>';
+  }).join('') : '<div style="color:var(--text-muted);padding:20px;text-align:center">No positions</div>';
 
+  // Table
   if (!pos.length) {
     document.getElementById('positions').innerHTML = 
-      '<div style="padding:16px;text-align:center;color:var(--muted)">No open positions</div>';
+      '<div style="padding:24px;text-align:center;color:var(--text-muted)">No open positions</div>';
     loading = false;
     btn.classList.remove('spinning');
     return;
@@ -711,12 +786,12 @@ async function load() {
     const isLong = p.d === 'LONG';
     return `<div class="pos-row ${isLong ? 'long' : 'short'}">
       <div class="pos-cell sym">${p.s}</div>
-      <div class="pos-cell"><span class="badge ${isLong ? 'long' : 'short'}">${p.d}</span></div>
+      <div class="pos-cell"><span class="pos-badge ${isLong ? 'long' : 'short'}">${p.d}</span></div>
       <div class="pos-cell"></div>
       <div class="pos-cell price current">${fmt(p.e)}</div>
       <div class="pos-cell price current">${fmt(p.m)}</div>
-      <div class="pos-cell">${fmt(sl(p))}</div>
-      <div class="pos-cell">${fmt(tp(p))}</div>
+      <div class="pos-cell sl">${fmt(sl(p))}</div>
+      <div class="pos-cell tp">${fmt(tp(p))}</div>
       <div class="pos-cell roi ${r >= 0 ? 'g' : 'r'}">${fmtROI(r)}</div>
     </div>`;
   }).join('');
@@ -725,7 +800,7 @@ async function load() {
   btn.classList.remove('spinning');
 }
 
-// Init
+// Init - all hidden by default
 document.getElementById('pnl').style.display = 'none';
 document.getElementById('statsGrid').style.display = 'none';
 document.getElementById('bal').classList.add('blur');
