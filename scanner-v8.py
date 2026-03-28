@@ -57,7 +57,7 @@ except NameError:
 try:
     ATR_MULTIPLIER_TP_HIGH
 except NameError:
-    ATR_MULTIPLIER_TP_HIGH = 4.0
+    ATR_MULTIPLIER_TP_HIGH = 6.0  # 6x ATR for TP (1:3 ratio)
 try:
     ATR_MULTIPLIER_SL_NORMAL
 except NameError:
@@ -65,7 +65,7 @@ except NameError:
 try:
     ATR_MULTIPLIER_TP_NORMAL
 except NameError:
-    ATR_MULTIPLIER_TP_NORMAL = 3.0
+    ATR_MULTIPLIER_TP_NORMAL = 6.0  # 6x ATR for TP (1:3 ratio)
 try:
     ATR_MULTIPLIER_SL_LOW
 except NameError:
@@ -73,7 +73,7 @@ except NameError:
 try:
     ATR_MULTIPLIER_TP_LOW
 except NameError:
-    ATR_MULTIPLIER_TP_LOW = 2.5
+    ATR_MULTIPLIER_TP_LOW = 4.5  # 4.5x ATR for TP (1:3 ratio)
 
 # === CONFIG ===
 API_KEY = os.environ.get('BINANCE_API_KEY', '')
@@ -522,6 +522,33 @@ def calc_atr(candles, period=14):
     return sum(trs) / len(trs) if trs else None
 
 
+def calc_bollinger_squeeze(prices, period=20):
+    """Bollinger Bands Squeeze - returns squeeze score (0-2)
+    Lower = more compressed (potential breakout coming)"""
+    if len(prices) < period:
+        return 0
+    
+    # Simple BB calculation
+    import statistics
+    recent = prices[-period:]
+    sma = statistics.mean(recent)
+    std = statistics.stdev(recent)
+    
+    # BB width
+    bb_width = (max(recent) - min(recent)) / sma if sma > 0 else 0
+    
+    # ATR for comparison
+    atr = calc_atr([[p,p,p,p,p] for p in prices[-15:]], 14) or (sma * 0.02)
+    atr_width = (atr * 4) / sma if sma > 0 else 0
+    
+    # Squeeze = BB narrower than ATR
+    if bb_width < atr_width * 0.7:
+        return 2  # Strong squeeze
+    elif bb_width < atr_width * 0.9:
+        return 1  # Mild squeeze
+    return 0  # No squeeze
+
+
 def calc_macd(prices, fast=12, slow=26, signal=9):
     """Calculate MACD histogram. Returns (macd, signal_line, histogram)"""
     if len(prices) < slow:
@@ -706,20 +733,20 @@ def analyze_symbol(symbol, stats):
     elif price_change > 5: runner_score += 1
     if abs(change_1h) > 3: runner_score += 1
     
-    # Breakout/Breakdown
-    if breakout: runner_score += 2
-    if breakdown: runner_score += 2
+    # Breakout/Breakdown - REMOVED (poor accuracy)
+    pass
     
     # OI
     if oi_change > 20: runner_score += 2
     elif oi_change > 10: runner_score += 1
     
     # New setups scoring
-    if weekly_change > 20: runner_score += 2  # Weekly 20%+ (max +2)
+    if weekly_change > 20: runner_score += 2  # Weekly 20%+ (max +2, reduced from +3)
     elif weekly_change > 10: runner_score += 1
     elif weekly_change > 3: runner_score += 1
     
-    if pocket_pivot: runner_score += 2
+    # Pocket Pivot - REMOVED (poor accuracy)
+    pass
     if trend_base: runner_score += 1
     if 0 <= ema_position <= 100 and ema_position < 50: runner_score += 1  # Price near 21EMA
     
@@ -774,6 +801,14 @@ def analyze_symbol(symbol, stats):
         if direction == "SHORT" and histogram > 0:
             # MACD bullish - reject SHORT
             return None
+    
+    # Bollinger Squeeze Filter - detect low volatility before breakout
+    squeeze = calc_bollinger_squeeze(closes)
+    # Squeeze is positive filter - higher = better for breakout
+    # Don't require squeeze, but prefer it
+    if squeeze == 0 and abs(price_change) < 5:
+        # No squeeze and no strong move - likely chop
+        return None
     if direction == "SHORT" and rsi_oversold:
         # Don't SHORT when RSI oversold (<30) - too risky  
         return None
