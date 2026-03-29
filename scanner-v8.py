@@ -57,15 +57,15 @@ except NameError:
 try:
     ATR_MULTIPLIER_TP_HIGH
 except NameError:
-    ATR_MULTIPLIER_TP_HIGH = 6.0  # 6x ATR for TP (1:3 ratio)
+    ATR_MULTIPLIER_TP_HIGH = 8.0  # 8x ATR for 1:4 ratio
 try:
     ATR_MULTIPLIER_SL_NORMAL
 except NameError:
-    ATR_MULTIPLIER_SL_NORMAL = 1.5
+    ATR_MULTIPLIER_SL_NORMAL = 2.0  # Match SL to HIGH
 try:
     ATR_MULTIPLIER_TP_NORMAL
 except NameError:
-    ATR_MULTIPLIER_TP_NORMAL = 6.0  # 6x ATR for TP (1:3 ratio)
+    ATR_MULTIPLIER_TP_NORMAL = 8.0  # 8x ATR for 1:4 ratio
 try:
     ATR_MULTIPLIER_SL_LOW
 except NameError:
@@ -73,7 +73,7 @@ except NameError:
 try:
     ATR_MULTIPLIER_TP_LOW
 except NameError:
-    ATR_MULTIPLIER_TP_LOW = 4.5  # 4.5x ATR for TP (1:3 ratio)
+    ATR_MULTIPLIER_TP_LOW = 6.0  # 6x ATR for 1:4 ratio
 
 # === CONFIG ===
 API_KEY = os.environ.get('BINANCE_API_KEY', '')
