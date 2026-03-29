@@ -152,10 +152,17 @@ def _fetch_fresh():
     # Get algo orders status
     algo = get_algo_orders()
     
+    # Calculate margin usage as percentage of balance
+    account_data = r2.json()
+    total_initial_margin = float(account_data.get('totalInitialMargin', 0))
+    margin_balance = float(account_data.get('totalMarginBalance', bal))
+    margin_used_pct = (total_initial_margin / margin_balance * 100) if margin_balance > 0 else 0
+    
     return {
         'bal': bal, 
         'pnl': pnl, 
         'pos': pos,
+        'margin': margin_used_pct,
         'stats': income if income else {
             'closed_pnl': 0, 'total_trades': 0, 'wins': 0, 'losses': 0,
             'winrate': 0, 'avg_win': 0, 'avg_loss': 0, 'expectancy': 0
