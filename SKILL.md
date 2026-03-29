@@ -1,10 +1,28 @@
-# SKILL.md - Neko Futures Trader
+---
+name: neko-futures-trader
+description: Automated Binance Futures trading bot with scanning, SL/TP automation, and backtesting. Use when user mentions futures trading, crypto trading bot, Binance automated trading, or needs help with trading system setup/maintenance.
+---
+
+# 🐱 Neko Futures Trader
 
 ## Overview
-Automated Binance Futures trading bot with advanced signal detection and risk management.
 
-**Emoji:** 🐱📈
-**Requires:** Python 3.8+, Binance Futures API
+Automated Binance Futures trading bot with advanced signal detection, risk management, and comprehensive backtesting capabilities.
+
+**Emoji:** 🐱📈  
+**Requires:** Python 3.8+, Binance Futures API, systemd
+
+---
+
+## When to Use
+
+Trigger when user mentions:
+- "futures trading" or "crypto bot"
+- "Binance automated trading"
+- "trading scanner" or "SL/TP automation"
+- "backtesting" or "strategy validation"
+- Dashboard setup/maintenance
+- Signal indicator questions
 
 ---
 
@@ -12,21 +30,22 @@ Automated Binance Futures trading bot with advanced signal detection and risk ma
 
 ```
 neko-futures-trader/
-├── scanner-v8.py           # Scanner (5min intervals)
-├── price-monitor.py        # SL/TP monitor (1sec)
-├── position_command.py     # Position checker
-├── dashboard_api.py        # Dashboard API
-├── emergency_close.py     # Emergency closer
-├── daily_eval.py           # Comprehensive daily evaluation
-├── config.py              # Trading parameters
-├── lib/                   # Helper modules
+├── scanner-v8.py              # Scanner (5min intervals)
+├── price-monitor.py           # SL/TP monitor (1sec)
+├── position_command.py        # Position checker
+├── dashboard_api.py           # Dashboard API
+├── emergency_close.py         # Emergency closer
+├── daily_eval.py              # Daily evaluation
+├── backtester.py              # Monte Carlo backtesting
+├── config.py                 # Trading parameters
+├── lib/                      # Helper modules
 │   ├── signal_filter.py
 │   ├── ict_indicators.py
 │   ├── advanced_analysis.py
 │   ├── delisting_monitor.py
 │   └── error_handling.py
 └── static/
-    └── neko-light.html    # Dashboard UI
+    └── neko-light.html       # Dashboard UI
 ```
 
 ---
@@ -35,7 +54,8 @@ neko-futures-trader/
 
 ### 1. Install
 ```bash
-git clone https://github.com/lukmanc405/neko-futures-trader.git /root/.openclaw/skills/neko-futures-trader
+git clone https://github.com/lukmanc405/neko-futures-trader.git \
+  /root/.openclaw/skills/neko-futures-trader
 cd /root/.openclaw/skills/neko-futures-trader
 ```
 
@@ -52,7 +72,7 @@ TELEGRAM_BOT_TOKEN=your_token
 TELEGRAM_CHANNEL=your_user_id
 ```
 
-### 4. Setup Workspace
+### 4. Workspace Setup
 ```bash
 mkdir -p /root/.openclaw/workspace/neko-futures-trader/{logs,data}
 cp .env /root/.openclaw/workspace/neko-futures-trader/
@@ -62,7 +82,7 @@ cp .env /root/.openclaw/workspace/neko-futures-trader/
 
 ## ⚙️ Systemd Services
 
-### Scanner
+### Scanner Service
 ```ini
 [Unit]
 Description=Neko Futures Scanner
@@ -82,7 +102,7 @@ StandardError=append:/root/.openclaw/workspace/neko-futures-trader/logs/scanner.
 WantedBy=multi-user.target
 ```
 
-### Monitor
+### Monitor Service
 ```ini
 [Unit]
 Description=Neko Futures Monitor
@@ -102,31 +122,12 @@ StandardError=append:/root/.openclaw/workspace/neko-futures-trader/logs/pm.log
 WantedBy=multi-user.target
 ```
 
-### Enable
+### Enable Services
 ```bash
 systemctl daemon-reload
-systemctl enable neko-scanner neko-monitor
-systemctl start neko-scanner neko-monitor
+systemctl enable neko-scanner neko-monitor neko-dashboard
+systemctl start neko-scanner neko-monitor neko-dashboard
 ```
-
----
-
-## 🌐 Dashboard
-
-### Setup
-```bash
-# Copy HTML
-cp static/neko-light.html /var/www/html/
-
-# Nginx (port 8443 SSL)
-# See nginx config in repository
-
-# Start service
-systemctl start neko-dashboard
-```
-
-### Access
-`https://YOUR_IP:8443/neko-light.html`
 
 ---
 
@@ -136,8 +137,11 @@ systemctl start neko-dashboard
 # Check positions
 python3 position_command.py
 
-# Daily evaluation (comprehensive)
+# Daily evaluation
 python3 daily_eval.py
+
+# Backtesting (Monte Carlo)
+python3 backtester.py
 
 # Emergency close
 python3 emergency_close.py
@@ -150,7 +154,22 @@ journalctl -u neko-scanner -f
 
 ---
 
-## 📈 Indicators (Signal Scoring)
+## 🌐 Dashboard
+
+Access at: `https://YOUR_IP:8443/neko-light.html`
+
+### Features
+- Real-time positions, balance, PnL
+- Win rate & closed PnL (7-day history)
+- Glassmorphism UI with particles
+- Dark/Light theme toggle
+- Sparkline charts
+- Toast notifications
+- Responsive design
+
+---
+
+## 📈 Indicators
 
 ### Active Indicators
 
@@ -165,11 +184,11 @@ journalctl -u neko-scanner -f
 
 | Filter | Condition | Action |
 |--------|-----------|--------|
-| RSI | LONG when RSI > 70 | Reject |
-| RSI | SHORT when RSI < 30 | Reject |
+| RSI | LONG when RSI > 70 | Reject LONG |
+| RSI | SHORT when RSI < 30 | Reject SHORT |
 | MACD Histogram | Contradicts direction | Reject |
 | Bollinger Squeeze | No squeeze + weak move | Reject (chop) |
-| EMA Position | Price too extended | Reject (chase) |
+| EMA Extended | Price too extended | Reject (chase) |
 
 ### Removed (Poor Accuracy)
 
@@ -187,25 +206,23 @@ journalctl -u neko-scanner -f
 | LEVERAGE | 10x | Leverage |
 | MIN_SCORE | 3 | Signal threshold |
 
-### R:R Ratio 1:3 (Optimized)
+### R:R Ratio 1:4
 
-With 42.9% winrate, you need R:R > 1:1.07 to break even.
-1:3 ratio ensures profitability even with 40% winrate.
-
-| Volatility | ATR Range | SL | TP | Ratio |
-|------------|-----------|-----|-----|-------|
-| HIGH | > 10% | 2x ATR | 6x ATR | 1:3 |
-| NORMAL | 5-10% | 2x ATR | 6x ATR | 1:3 |
-| LOW | < 5% | 1.5x ATR | 4.5x ATR | 1:3 |
+| Volatility | ATR Range | SL | TP |
+|------------|-----------|-----|-----|
+| HIGH | > 10% | 2x ATR | 8x ATR |
+| NORMAL | 5-10% | 2x ATR | 8x ATR |
+| LOW | < 5% | 1.5x ATR | 6x ATR |
 
 ---
 
 ## 🐛 Bug Fixes
 
-1. **Algo API:** `/fapi/v1/algoOrder` (not `/orderAlg`)
+1. **Algo API:** `/fapi/v1/algoOrder`
 2. **Params:** `algoType=CONDITIONAL`, `quantity=1`, `reduceOnly=true`
 3. **Precision:** Rounds to tickSize per symbol
 4. **Floating point:** String formatting for SL/TP prices
+5. **Income API:** Use `/fapi/v1/income` for accurate winrate
 
 ---
 
@@ -216,9 +233,14 @@ metadata:
   openclaw:
     emoji: 🐱📈
     requires:
-      bins: [python3]
-      env: [BINANCE_API_KEY, BINANCE_SECRET, TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL]
+      bins: [python3, systemctl]
+      env:
+        - BINANCE_API_KEY
+        - BINANCE_SECRET
+        - TELEGRAM_BOT_TOKEN
+        - TELEGRAM_CHANNEL
     startup:
-      command: "systemctl start neko-scanner neko-monitor"
+      command: systemctl start neko-scanner neko-monitor neko-dashboard
       type: service
+    repo: https://github.com/lukmanc405/neko-futures-trader
 ```

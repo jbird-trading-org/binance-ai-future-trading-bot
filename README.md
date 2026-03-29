@@ -1,53 +1,76 @@
 # 🐱 Neko Futures Trader
 
-Automated Binance Futures Trading Bot with advanced signal detection and risk management.
+Automated Binance Futures trading bot with advanced signal detection, risk management, and comprehensive backtesting.
+
+**Emoji:** 🐱📈  
+**Repository:** https://github.com/lukmanc405/neko-futures-trader  
+**Dashboard:** `https://YOUR_IP:8443/neko-light.html`
+
+---
 
 ## 📁 Structure
 
 ```
 neko-futures-trader/
-├── scanner-v8.py           # Main scanner (5min intervals)
-├── price-monitor.py        # SL/TP monitor (1sec intervals)
-├── position_command.py     # Check positions
-├── dashboard_api.py        # Dashboard API server
-├── emergency_close.py      # Emergency position closer
-├── daily_eval.py           # Comprehensive daily evaluation
-├── config.py               # Trading parameters
-├── lib/                    # Helper modules
+├── scanner-v8.py              # Main scanner (5min intervals)
+├── price-monitor.py           # SL/TP monitor (1sec intervals)
+├── position_command.py         # Position checker
+├── dashboard_api.py            # Dashboard API server
+├── emergency_close.py          # Emergency position closer
+├── daily_eval.py               # Comprehensive daily evaluation
+├── backtester.py              # Monte Carlo backtesting
+├── config.py                  # Trading parameters
+├── lib/                       # Helper modules
 │   ├── signal_filter.py
 │   ├── ict_indicators.py
 │   ├── advanced_analysis.py
 │   ├── delisting_monitor.py
 │   └── error_handling.py
 ├── static/
-│   └── neko-light.html    # Dashboard UI
+│   └── neko-light.html        # Dashboard UI
+├── scripts/
+│   ├── dashboard_api.py       # API server
+│   └── backtester.py         # Backtesting engine
 ├── README.md
 └── SKILL.md
 ```
 
+---
+
 ## 🚀 Quick Start
 
+### 1. Install
 ```bash
-# Install dependencies
-pip install python-dotenv requests pandas numpy scipy scikit-learn
-
-# Setup .env
-cp .env.example .env
-nano .env
-
-# Start services
-systemctl enable neko-scanner neko-monitor neko-dashboard
-systemctl start neko-scanner neko-monitor neko-dashboard
+git clone https://github.com/lukmanc405/neko-futures-trader.git /root/.openclaw/skills/neko-futures-trader
+cd /root/.openclaw/skills/neko-futures-trader
 ```
 
-## ⚙️ Config (.env)
+### 2. Dependencies
+```bash
+pip install python-dotenv requests pandas numpy scipy scikit-learn
+```
 
+### 3. Configure (.env)
 ```bash
 BINANCE_API_KEY=your_key
 BINANCE_SECRET=your_secret
 TELEGRAM_BOT_TOKEN=your_token
 TELEGRAM_CHANNEL=your_user_id
 ```
+
+### 4. Setup Workspace
+```bash
+mkdir -p /root/.openclaw/workspace/neko-futures-trader/{logs,data}
+cp .env /root/.openclaw/workspace/neko-futures-trader/
+```
+
+### 5. Start Services
+```bash
+systemctl enable neko-scanner neko-monitor neko-dashboard
+systemctl start neko-scanner neko-monitor neko-dashboard
+```
+
+---
 
 ## 📊 Commands
 
@@ -58,21 +81,35 @@ python3 position_command.py
 # Daily evaluation (comprehensive)
 python3 daily_eval.py
 
+# Backtesting (Monte Carlo)
+python3 backtester.py
+
 # Emergency close all
 python3 emergency_close.py
 
 # View logs
-tail -f logs/scanner.log
-tail -f logs/pm.log
+tail -f /root/.openclaw/workspace/neko-futures-trader/logs/scanner.log
+tail -f /root/.openclaw/workspace/neko-futures-trader/logs/pm.log
 ```
+
+---
 
 ## 🌐 Dashboard
 
-`https://YOUR_IP:8443/neko-light.html`
+Access at: `https://YOUR_IP:8443/neko-light.html`
 
-## 📈 Indicators (Signal Scoring)
+**Features:**
+- Real-time positions, balance, PnL
+- Win rate, closed PnL, avg win/loss
+- Glassmorphism UI with particles
+- Dark/Light theme toggle
+- Responsive design
 
-### Active Indicators
+---
+
+## 📈 Trading System
+
+### Indicators (Signal Scoring)
 
 | Indicator | Score | Description |
 |-----------|-------|-------------|
@@ -86,8 +123,8 @@ tail -f logs/pm.log
 
 | Filter | Condition | Action |
 |--------|-----------|--------|
-| RSI LONG | RSI > 70 | Reject LONG |
-| RSI SHORT | RSI < 30 | Reject SHORT |
+| RSI | LONG when RSI > 70 | Reject LONG |
+| RSI | SHORT when RSI < 30 | Reject SHORT |
 | MACD Histogram | Contradicts direction | Reject signal |
 | Bollinger Squeeze | No squeeze + weak move | Reject (chop) |
 | EMA Extended | Price too extended | Reject (chase) |
@@ -99,50 +136,58 @@ tail -f logs/pm.log
 
 ---
 
-## 📊 ATR-Based SL/TP System
+## ⚙️ ATR-Based SL/TP System
 
-**ATR = Average True Range** - measures market volatility.
-
-### R:R Ratio 1:3 (Optimized)
+**R:R Ratio 1:4 (Optimized for 42.9% winrate)**
 
 | Volatility | ATR Range | SL | TP | Ratio |
 |------------|-----------|-----|-----|-------|
-| HIGH | > 10% | 2x ATR | 6x ATR | 1:3 |
-| NORMAL | 5-10% | 2x ATR | 6x ATR | 1:3 |
-| LOW | < 5% | 1.5x ATR | 4.5x ATR | 1:3 |
+| HIGH | > 10% | 2x ATR | 8x ATR | 1:4 |
+| NORMAL | 5-10% | 2x ATR | 8x ATR | 1:4 |
+| LOW | < 5% | 1.5x ATR | 6x ATR | 1:4 |
+
+### Why 1:4 R:R?
+
+With 42.9% winrate, break-even R:R = 1.33:1  
+1:4 ratio ensures profitability even with drawdown periods.
 
 ### Example
-
 ```
-Entry: $100
-ATR: $2 (2%)
+Entry: $100, ATR: $2 (2%)
 
 HIGH VOL:
   SL = $100 - (2 × $2) = $96
-  TP = $100 + (6 × $2) = $112
-  Risk: $4 | Reward: $12 = 1:3 ratio ✅
-
-LOW VOL:
-  SL = $100 - (1.5 × $2) = $97
-  TP = $100 + (4.5 × $2) = $109
-  Risk: $3 | Reward: $9 = 1:3 ratio ✅
+  TP = $100 + (8 × $2) = $116
+  Risk: $4 | Reward: $16 = 1:4 ratio ✅
 ```
-
-### Why 1:3 R:R?
-
-With 42.9% winrate, you need R:R > 1:1.07 to break even.
-1:3 ratio ensures profitability even with 40% winrate.
 
 ---
 
-## ⚙️ Parameters
+## ⚙️ Trading Parameters
 
 | Param | Default | Description |
 |-------|---------|-------------|
 | MAX_POSITIONS | 5 | Max open positions |
 | MAX_MARGIN | 30% | Max margin usage |
-| LEVERAGE | 10x | Leverage multiplier |
-| MIN_SCORE | 3 | Min signal score |
+| LEVERAGE | 10x | Leverage |
+| MIN_SCORE | 3 | Signal threshold |
+
+---
+
+## 📊 Backtesting
+
+Monte Carlo simulation for strategy validation:
+
+```bash
+python3 backtester.py
+```
+
+**Features:**
+- Basic metrics (winrate, R:R, expectancy, drawdown)
+- Monte Carlo simulation (5000+ iterations)
+- Per-symbol analysis
+- Kelly Criterion calculation
+- JSON export
 
 ---
 
@@ -152,18 +197,7 @@ With 42.9% winrate, you need R:R > 1:1.07 to break even.
 - ✅ tickSize price rounding (no precision errors)
 - ✅ `quantity=1` + `reduceOnly=true` (works reliably)
 - ✅ Floating point precision in SL/TP
-
----
-
-## 📊 Daily Evaluation Metrics
-
-The bot sends comprehensive daily reports including:
-
-- Balance & Open PnL
-- Win Rate, R:R, Expectancy
-- Per-symbol performance
-- Blacklist suggestions (worst performers)
-- Trade recommendations
+- ✅ Income history API for accurate winrate
 
 ---
 
@@ -176,6 +210,13 @@ systemctl restart neko-scanner neko-monitor neko-dashboard
 # Check status
 systemctl status neko-scanner neko-monitor neko-dashboard
 
-# Logs
+# View logs
 journalctl -u neko-scanner -f
+journalctl -u neko-monitor -f
 ```
+
+---
+
+## 📜 License
+
+MIT License - lukmanc405
