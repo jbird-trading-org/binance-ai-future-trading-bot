@@ -171,6 +171,37 @@ body::before {
 }
 
 /* Skeleton loading */
+/* Empty state */
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.6;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.empty-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .skeleton {
   background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
   background-size: 200% 100%;
@@ -1039,9 +1070,22 @@ function roi(p) {
   return n > 0 ? (p.u / n) * 100 : 0;
 }
 
+// Format number with thousand separators and proper decimals
+function formatNumber(v, decimals = 2, prefix = '$') {
+  if (!v && v !== 0) return '--';
+  const num = parseFloat(v);
+  if (isNaN(num)) return '--';
+  // Add thousand separators
+  const formatted = num.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+  return prefix + formatted;
+}
+
 function fmt(v, d = 4) {
   if (!v && v !== 0) return '--';
-  return '$' + v.toFixed(d);
+  return formatNumber(v, d, '$');
 }
 
 function fmtROI(v) {
@@ -1066,11 +1110,12 @@ function updateCircleProgress(value, max = 30) {
 }
 
 // Animate number
+// Animate number with formatted output
 function animateValue(el, value, prefix = '', suffix = '', decimals = 2) {
   const text = el.textContent.replace(/[^0-9.-]/g, '');
-  const start = parseFloat(text) || 0;
+  const start = parseFloat(text.replace(/,/g, '')) || 0;
   const end = typeof value === 'number' ? value : parseFloat(value) || 0;
-  const duration = 600;
+  const duration = 800;
   const startTime = performance.now();
   
   function update(currentTime) {
@@ -1078,7 +1123,10 @@ function animateValue(el, value, prefix = '', suffix = '', decimals = 2) {
     const progress = Math.min(elapsed / duration, 1);
     const easeOut = 1 - Math.pow(1 - progress, 3);
     const current = start + (end - start) * easeOut;
-    el.textContent = prefix + current.toFixed(decimals) + suffix;
+    el.textContent = prefix + current.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    }) + suffix;
     if (progress < 1) requestAnimationFrame(update);
   }
   
@@ -1133,6 +1181,12 @@ let loading = false;
 async function load() {
   if (loading) return;
   loading = true;
+  
+  // Show skeleton for positions
+  const posDiv = document.getElementById('positions');
+  if (!posDiv.querySelector('.empty-state') && !posDiv.querySelector('.pos-row')) {
+    posDiv.innerHTML = '<div class="skeleton" style="height:50px;margin:10px"></div><div class="skeleton" style="height:50px;margin:10px"></div>';
+  }
   
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('spinning');
@@ -1245,7 +1299,7 @@ async function load() {
   // Table with tooltips
   if (!pos.length) {
     document.getElementById('positions').innerHTML = 
-      '<div style="padding:24px;text-align:center;color:var(--text-muted)">No open positions</div>';
+      '<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">No Active Positions</div><div class="empty-desc">Scanner will alert when signals appear</div></div>';
     loading = false;
     btn.classList.remove('spinning');
     return;
