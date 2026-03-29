@@ -719,14 +719,14 @@ def analyze_symbol(symbol, stats):
     vwap_cross = (closes[-1] > vwap > closes[-2]) or (closes[-1] < vwap < closes[-2])
     
     # 14. Extra Volume Score (5x+ avg - extra bonus)
-    extra_vol_score = 2 if vol_ratio > 5 else 0
+    extra_vol_score = 1 if vol_ratio > 5 else 0  # Reduced
     
     # Runner score - updated with new setups
     runner_score = 0
     
-    # Volume
-    if vol_ratio > 3: runner_score += 2
-    elif vol_ratio > 2: runner_score += 1
+    # Volume - REDUCED (was too aggressive, caused false signals)
+    if vol_ratio > 5: runner_score += 1  # 5x+ only
+    elif vol_ratio > 3: runner_score += 1
     
     # Price changes
     if price_change > 10: runner_score += 2
@@ -1194,6 +1194,11 @@ def main():
             analysis = analyze_symbol(symbol, stats)
             if analysis:
                 print(f"✅ SIGNAL! {analysis['direction']}")
+                macd_h = analysis.get("macd_histogram", 0)
+                squeeze = analysis.get("squeeze", 0)
+                oi_ch = analysis.get("oi_change", 0)
+                vol_r = analysis.get("vol_ratio", 1)
+                print(f"      → indicators: MACD={macd_h:+.4f} squeeze={squeeze} OI={oi_ch:+.1f}% vol={vol_r:.1f}x")
                 
                 # Calculate quantity with proper floor (not int truncation)
                 trade_amount = (balance * ENTRY_PERCENT / 100) * LEVERAGE
