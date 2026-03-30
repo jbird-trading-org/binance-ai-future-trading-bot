@@ -1204,7 +1204,7 @@ async function load() {
   if (!allHidden) document.getElementById('bal').classList.remove('blur');
   
   // Flash effect on PnL change
-  const newPnl = (data.stats && data.stats.closed_pnl) || 0;
+  const newPnl = (data.pnl !== undefined) ? data.pnl : (data.stats && data.stats.closed_pnl) || 0;
   if (lastPnl !== 0 && newPnl !== lastPnl) {
     const card = document.getElementById('balanceCard');
     card.classList.remove('flash-green', 'flash-red');
@@ -1217,7 +1217,7 @@ async function load() {
   // Animate balance
   animateValue(document.getElementById('bal'), data.bal || 0, '$', '', 2);
   
-  const pnl = (data.stats && data.stats.closed_pnl) || 0;
+  const pnl = (data.pnl !== undefined) ? data.pnl : (data.stats && data.stats.closed_pnl) || 0;
   const pnlEl = document.getElementById('pnl');
   pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2) + ' USDT';
   pnlEl.className = 'balance-pnl' + (pnl < 0 ? ' negative' : '');
