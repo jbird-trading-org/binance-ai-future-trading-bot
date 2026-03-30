@@ -903,6 +903,7 @@ def analyze_symbol(symbol, stats):
     
     rsi_14 = calc_rsi(closes, 14)
     # RSI-based filter: reject bad entries
+    squeeze = 0  # Initialize early to avoid "not defined" errors
     rsi_oversold = rsi_14 < 30
     rsi_overbought = rsi_14 > 70
     rsi_signal = rsi_oversold or rsi_overbought
