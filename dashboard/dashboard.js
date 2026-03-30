@@ -127,7 +127,7 @@ async function fetchAccountData() {
         
         if (!account || !account.totalMarginBalance) {
             console.error('Invalid account response');
-            return cache.data || { bal: 0, margin: 0, pos: [], algos: [], income: null };
+            return cache.data || { bal: 0, margin: 0, pos: [], algos: [], stats: null };
         }
         
         const balance = parseFloat(account.totalMarginBalance || 0);
@@ -163,14 +163,14 @@ async function fetchAccountData() {
                 qty: o.origQty,
                 price: o.price
             })) : [],
-            income: income
+            stats: income
         };
         
         cache = { data: result, timestamp: now };
         return result;
     } catch (e) {
         console.error('Account fetch error:', e.message);
-        return cache.data || { bal: 0, margin: 0, pos: [], algos: [], income: null };
+        return cache.data || { bal: 0, margin: 0, pos: [], algos: [], stats: null };
     }
 }
 
