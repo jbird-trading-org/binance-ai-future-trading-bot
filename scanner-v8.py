@@ -1086,8 +1086,18 @@ def analyze_symbol(symbol, stats):
         # Don't SHORT when RSI oversold (<30) - too risky  
         return None
     
-    # Use ATR-based if ATR% is in safe range, otherwise fallback to PRICE
-    if atr_pct >= PRICE_FALLBACK_MIN_ATR and atr_pct <= PRICE_FALLBACK_MAX_ATR:
+    # GRID-AWARE SL/TP: Use support/resistance if grid signal
+    if grid_signal == 'LONG_ENTRY' and support:
+        # SL below support for LONG at support
+        sl = support * 0.98  # 2% buffer below support
+        tp1 = resistance * 0.98  # TP at resistance
+        sl_method = "GRID_SUPPORT"
+    elif grid_signal == 'SHORT_ENTRY' and resistance:
+        # SL above resistance for SHORT at resistance
+        sl = resistance * 1.02  # 2% buffer above resistance
+        tp1 = support * 1.02  # TP at support
+        sl_method = "GRID_RESISTANCE"
+    elif atr_pct >= PRICE_FALLBACK_MIN_ATR and atr_pct <= PRICE_FALLBACK_MAX_ATR:
         # ATR-based SL/TP (anti-fakeout: wider multipliers)
         if atr_pct > ATR_HIGH_VOLATILITY:
             atr_mult_sl = ATR_MULTIPLIER_SL_HIGH
