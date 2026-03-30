@@ -713,53 +713,7 @@ def get_signal_tier(score, direction):
             return 'STRONG_BUY'
 
 
-def calc_support_resistance(prices, highs, lows, period=50):
-    """Detect support and resistance levels using price action"""
-    if len(prices) < period:
-        return None, None, None
-    
-    # Get recent data
-    recent_prices = prices[-period:]
-    recent_highs = highs[-period:]
-    recent_lows = lows[-period:]
-    
-    # Find swing high and swing low
-    swing_high = max(recent_highs)
-    swing_low = min(recent_lows)
-    
-    # Calculate mid point
-    mid = (swing_high + swing_low) / 2
-    
-    # Calculate range
-    price_range = swing_high - swing_low
-    threshold = price_range * 0.05  # 5% zone
-    
-    current_price = prices[-1]
-    
-    # Determine zone
-    if abs(current_price - swing_low) < threshold:
-        zone = 'SUPPORT'  # Near support
-    elif abs(current_price - swing_high) < threshold:
-        zone = 'RESISTANCE'  # Near resistance
-    else:
-        zone = 'MIDDLE'  # In the middle
-    
-    return swing_low, swing_high, zone
 
-
-def calc_grid_levels(support, resistance, n_levels=3):
-    """Calculate grid levels between support and resistance"""
-    if support is None or resistance is None:
-        return []
-    
-    levels = []
-    step = (resistance - support) / (n_levels + 1)
-    
-    for i in range(1, n_levels + 1):
-        level = support + (step * i)
-        levels.append(level)
-    
-    return levels
 
 
 def calc_williams_r(high, low, close, period=14):
@@ -1027,28 +981,6 @@ def analyze_symbol(symbol, stats):
     atr = calc_atr(candles, 14) or (current * 0.02)
     atr_pct = (atr / current * 100) if current > 0 else 0
     
-    # GRID SCANNER: Detect support/resistance
-    support, resistance, zone = calc_support_resistance(closes, highs, lows, 50)
-    grid_levels = calc_grid_levels(support, resistance, 3) if support else []
-    
-    # GRID LOGIC: Range-bound detection
-    is_range_bound = False
-    grid_signal = None
-    
-    if zone == 'SUPPORT' and atr_pct < 8:  # Near support, low volatility
-        is_range_bound = True
-        grid_signal = 'LONG_ENTRY'  # Buy the dip
-        runner_score += 2
-        
-    elif zone == 'RESISTANCE' and atr_pct < 8:  # Near resistance, low volatility
-        is_range_bound = True
-        grid_signal = 'SHORT_ENTRY'  # Sell the rally
-        runner_score += 2
-        
-    elif zone == 'MIDDLE' and atr_pct < 5:  # Very low volatility = choppy
-        is_range_bound = True
-        grid_signal = 'NO_TRADE'  # Wait
-    
     # RSI Signal - just log, don't reject (research shows RSI alone is not reliable)
     rsi_signal = "OB" if rsi_14 > 70 else "OS" if rsi_14 < 30 else "Neutral"
 
@@ -1087,18 +1019,7 @@ def analyze_symbol(symbol, stats):
         # Don't SHORT when RSI oversold (<30) - too risky  
         return None
     
-    # GRID-AWARE SL/TP: Use support/resistance if grid signal
-    if grid_signal == 'LONG_ENTRY' and support:
-        # SL below support for LONG at support
-        sl = support * 0.98  # 2% buffer below support
-        tp1 = resistance * 0.98  # TP at resistance
-        sl_method = "GRID_SUPPORT"
-    elif grid_signal == 'SHORT_ENTRY' and resistance:
-        # SL above resistance for SHORT at resistance
-        sl = resistance * 1.02  # 2% buffer above resistance
-        tp1 = support * 1.02  # TP at support
-        sl_method = "GRID_RESISTANCE"
-    elif atr_pct >= PRICE_FALLBACK_MIN_ATR and atr_pct <= PRICE_FALLBACK_MAX_ATR:
+    if atr_pct >= PRICE_FALLBACK_MIN_ATR and atr_pct <= PRICE_FALLBACK_MAX_ATR:
         # ATR-based SL/TP (anti-fakeout: wider multipliers)
         if atr_pct > ATR_HIGH_VOLATILITY:
             atr_mult_sl = ATR_MULTIPLIER_SL_HIGH
@@ -1202,12 +1123,6 @@ def analyze_symbol(symbol, stats):
         'signal_tier': 'NEUTRAL',
         'macd_histogram': histogram if 'histogram' in locals() else 0,
         'squeeze': squeeze if 'squeeze' in locals() else 0,
-        # Grid Scanner
-        'grid_signal': grid_signal if 'grid_signal' in locals() else None,
-        'zone': zone if 'zone' in locals() else 'MIDDLE',
-        'support': support,
-        'resistance': resistance,
-        'is_range_bound': is_range_bound if 'is_range_bound' in locals() else False,
     }
 
 def fetch_brave_news(query, count=2):
@@ -1362,12 +1277,6 @@ def format_signal(analysis, stats):
 • Divergence: {s.get('divergence', 'NONE')}
 • Confidence: {s.get('confidence', 0.5):.0%}
 • Signal: {s.get('signal_tier', 'NEUTRAL')}
-
-📊 GRID SCANNER:
-• Zone: {s.get('zone', 'MIDDLE')}
-• Support: {f'${s.get('support', 0):.6f}' if s.get('support') else 'N/A'}
-• Resistance: {f'${s.get('resistance', 0):.6f}' if s.get('resistance') else 'N/A'}
-• Grid Signal: {s.get('grid_signal', 'NONE')}
 
 ⏱️ COOLDOWN: 2h after SL
 • Support: {s['support']:.6f}
