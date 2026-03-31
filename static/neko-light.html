@@ -432,6 +432,7 @@ body::before {
   transition: stroke-dashoffset 1s ease;
 }
 
+.circle-progress-label { font-size: 9px; color: var(--text); text-align: center; margin-top: -5px; }
 .circle-progress-text {
   position: absolute;
   inset: 0;
@@ -895,6 +896,7 @@ body.light .status-bar {
             stroke-dasharray="163.36" stroke-dashoffset="163.36"/>
         </svg>
         <div class="circle-progress-text" id="marginText">--%</div>
+        <div class="circle-progress-label">MARGIN</div>
       </div>
     </div>
   </div>
@@ -902,7 +904,7 @@ body.light .status-bar {
   <!-- Stats -->
   <div class="stats-grid" id="statsGrid">
     <div class="stat-box">
-      <div class="stat-label">Win Rate</div>
+      <div class="stat-label">WIN RATE 7D</div>
       <div class="stat-value c" id="winrate">--%</div>
     </div>
     <div class="stat-box">
@@ -921,7 +923,7 @@ body.light .status-bar {
 
   <!-- Top Performers -->
   <div class="section-header">
-    <div class="section-title">Top Performers</div>
+    <div class="section-title">Recent Trades</div>
   </div>
   <div class="performers" id="performers"></div>
 
@@ -947,8 +949,8 @@ body.light .status-bar {
 
 <!-- Status Bar -->
 <div class="status-bar">
-  <div class="status-item"><div class="radar-dot"></div> Scanner <span>Active</span></div>
-  <div class="status-item"><div class="radar-dot"></div> Monitor <span>Active</span></div>
+  <div class="status-item">✅ Scanner</div>
+  <div class="status-item">✅ Monitor</div>
   <div class="status-item algo-status" id="algoStatus">📊 Algo: --</div>
   <div>Built by <strong style="color:var(--cyan)">Neko Sentinel</strong> 🐱</div>
 </div>
