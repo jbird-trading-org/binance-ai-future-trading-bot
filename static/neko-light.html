@@ -906,15 +906,15 @@ body.light .status-bar {
       <div class="stat-value c" id="winrate">--%</div>
     </div>
     <div class="stat-box">
-      <div class="stat-label">Closed PnL</div>
+      <div class="stat-label">PNL 7D</div>
       <div class="stat-value" id="closedPnl">$--</div>
     </div>
     <div class="stat-box">
-      <div class="stat-label">Avg Win</div>
+      <div class="stat-label">WIN 7D</div>
       <div class="stat-value g" id="avgWin">$--</div>
     </div>
     <div class="stat-box">
-      <div class="stat-label">Avg Loss</div>
+      <div class="stat-label">LOSS 7D</div>
       <div class="stat-value r" id="avgLoss">$--</div>
     </div>
   </div>
@@ -1226,13 +1226,15 @@ async function load() {
   const stats = data.stats || {};
   const winrate = stats.winrate || 0;
   const closedPnl = stats.closed_pnl || 0;
-  const avgWin = stats.avg_win || 0;
-  const avgLoss = stats.avg_loss || 0;
+  const wins = stats.wins || 0;
+  const losses = stats.losses || 0;
+  const winsCount = wins;
+  const lossesCount = losses;
 
   animateValue(document.getElementById('winrate'), winrate, '', '%', 1);
   animateValue(document.getElementById('closedPnl'), closedPnl, (closedPnl >= 0 ? '+' : '$'), '', 2);
-  animateValue(document.getElementById('avgWin'), avgWin, '$', '', 2);
-  animateValue(document.getElementById('avgLoss'), avgLoss, '$', '', 2);
+  animateValue(document.getElementById('avgWin'), winsCount, '', '', 0);
+  animateValue(document.getElementById('avgLoss'), lossesCount, '', '', 0);
 
   // Color winrate based on value
   const wrEl = document.getElementById('winrate');
