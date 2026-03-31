@@ -870,10 +870,13 @@ body.light .status-bar {
         .closed-row-small {
             display: flex;
             justify-content: space-between;
-            padding: 4px 0;
-            font-size: 11px;
-            color: var(--text);
+            align-items: center;
+            padding: 6px 0;
+            font-size: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
+        .closed-row-small:last-child { border-bottom: none; }
+        .closed-symbol { font-weight: 600; color: var(--text); }
         
         .closed-row {
             display: flex;
@@ -980,9 +983,9 @@ body.light .status-bar {
 </div>
 
   <!-- Last Closed Trades -->
-  <div class="closed-section" id="lastTradeSection" style="display:none; margin-top: 10px; padding: 10px;">
-    <div class="section-title" style="margin-bottom: 8px;">LAST POSITIONS (3)</div>
-    <div id="lastTrade" style="font-size: 12px;"></div>
+  <div class="closed-section" id="lastTradeSection" style="display:none; margin-top: 15px; padding: 12px 15px;">
+    <div class="section-title" style="margin-bottom: 10px; font-size: 11px; color: var(--text-muted);">LAST POSITIONS</div>
+    <div id="lastTrade"></div>
   </div>
 
 
