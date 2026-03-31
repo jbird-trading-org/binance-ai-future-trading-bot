@@ -1392,7 +1392,7 @@ async function load() {
     const holdPeriod = Math.floor(Math.random() * 120) + ' min';
     
     return `<div class="pos-row ${isLong ? 'long' : 'short'}">
-    <div class="pos-cell sym">${p.s}</div>
+    <div class="pos-cell sym">${p.s.replace('USDT', '')}</div>
     <div class="pos-cell"><span class="pos-badge ${isLong ? 'long' : 'short'}">${p.d}</span></div>
     <div class="pos-cell"></div>
     <div class="pos-cell price current">${fmt(p.e)}</div>
