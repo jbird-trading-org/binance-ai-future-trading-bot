@@ -310,8 +310,8 @@ def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
         tp_trigger_rounded = round_to_tick(tp_trigger, tick_size)
         
         sl_side = "SELL" if side == "BUY" else "BUY"
-        sl_params = "symbol={}&side={}&type=STOP_MARKET&orderType=STOP_MARKET&algoType=CONDITIONAL&quantity=1&reduceOnly=true&triggerPrice={}&stopPrice={}&workingType=CONTRACT_PRICE&timestamp={}".format(
-            symbol, sl_side, sl_trigger_rounded, sl_trigger_rounded, int(time.time() * 1000))
+        sl_params = "symbol={}&side={}&type=STOP_MARKET&orderType=STOP_MARKET&algoType=CONDITIONAL&quantity={}&reduceOnly=true&triggerPrice={}&stopPrice={}&workingType=CONTRACT_PRICE&timestamp={}".format(
+            symbol, sl_side, quantity, sl_trigger_rounded, sl_trigger_rounded, int(time.time() * 1000))
         sl_sig = get_signature(sl_params)
         sl_url = "https://fapi.binance.com/fapi/v1/algoOrder?{}&signature={}".format(sl_params, sl_sig)
         sl_r = requests.post(sl_url, headers=headers, timeout=10)
@@ -320,8 +320,8 @@ def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
         
         # Place TAKE PROFIT order using Algo API
         tp_side = "SELL" if side == "BUY" else "BUY"
-        tp_params = "symbol={}&side={}&type=TAKE_PROFIT_MARKET&orderType=TAKE_PROFIT_MARKET&algoType=CONDITIONAL&quantity=1&reduceOnly=true&triggerPrice={}&stopPrice={}&workingType=CONTRACT_PRICE&timestamp={}".format(
-            symbol, tp_side, tp_trigger_rounded, tp_trigger_rounded, int(time.time() * 1000))
+        tp_params = "symbol={}&side={}&type=TAKE_PROFIT_MARKET&orderType=TAKE_PROFIT_MARKET&algoType=CONDITIONAL&quantity={}&reduceOnly=true&triggerPrice={}&stopPrice={}&workingType=CONTRACT_PRICE&timestamp={}".format(
+            symbol, tp_side, quantity, tp_trigger_rounded, tp_trigger_rounded, int(time.time() * 1000))
         tp_sig = get_signature(tp_params)
         tp_url = "https://fapi.binance.com/fapi/v1/algoOrder?{}&signature={}".format(tp_params, tp_sig)
         tp_r = requests.post(tp_url, headers=headers, timeout=10)
@@ -1514,7 +1514,10 @@ def main():
                         
                         open_count += 1
                 else:
-                    print(f"  Order failed: {status}")
+                    if result.get('code'):
+                        print(f"  Order failed: {result.get('msg', status)}")
+                    else:
+                        print(f"  Order failed: {status}")
             else:
                 print("no signal")
         except Exception as e:
