@@ -105,16 +105,18 @@ async function getAlgoOrders() {
 
 async function getClosedTrades() {
     try {
-        // Get recent income from Binance
-        const data = await binanceGET('/fapi/v1/income', 'limit=100');
+        // Get recent income from Binance - last 24 hours
+        const now = Date.now();
+        const startTime = now - (24 * 60 * 60 * 1000); // 24 hours ago
+        const data = await binanceGET('/fapi/v1/income', `startTime=${startTime}&limit=100`);
         
         if (!Array.isArray(data)) return [];
         
-        // Get realized PnL only, Binance returns newest first
+        // Get realized PnL only
         const realized = data.filter(t => t.incomeType === 'REALIZED_PNL');
         
-        // Take first 5 (most recent since Binance returns newest first)
-        return realized.slice(0, 5).map(t => ({
+        // Binance returns oldest first with startTime, so take last 5 (most recent)
+        return realized.slice(-5).map(t => ({
             symbol: t.symbol,
             side: parseFloat(t.income) > 0 ? 'WIN' : 'LOSS',
             pnl: parseFloat(t.income),
