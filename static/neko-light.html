@@ -936,6 +936,14 @@ function toggleLastPos() {
       <div class="logo-icon">🐱</div>
       <div class="logo-text">NEKO<span>.TRADING</span></div>
     </div>
+    <button class="share-btn" onclick="openShareModal()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+        <polyline points="16 6 12 2 8 6"/>
+        <line x1="12" y1="2" x2="12" y2="15"/>
+      </svg>
+      SHARE PNL
+    </button>
     <div class="hdr-actions">
       <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
       <button class="icon-btn" id="togBtn" onclick="toggleAll()" title="Show/Hide values">👁️</button>
@@ -1022,6 +1030,53 @@ function toggleLastPos() {
       <span>ROI</span>
     </div>
     <div id="positions"></div>
+  </div>
+</div>
+
+<!-- Share PnL Modal -->
+<div id="shareModal" class="modal" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span>Share PnL</span>
+      <button class="modal-close" onclick="closeShareModal()">×</button>
+    </div>
+    <div id="shareCard" class="share-card">
+      <div class="share-card-header">
+        <div class="share-logo">🐱 NEKO<span>.TRADING</span></div>
+        <div class="share-date" id="shareDate"></div>
+      </div>
+      <div class="share-card-body">
+        <div class="share-pnl-label">TOTAL PNL</div>
+        <div class="share-pnl-value" id="sharePnlValue">$0.00</div>
+        <div class="share-stats">
+          <div class="share-stat">
+            <div class="share-stat-label">WIN</div>
+            <div class="share-stat-value win" id="shareWin">0</div>
+          </div>
+          <div class="share-stat">
+            <div class="share-stat-label">LOSS</div>
+            <div class="share-stat-value loss" id="shareLoss">0</div>
+          </div>
+          <div class="share-stat">
+            <div class="share-stat-label">WR</div>
+            <div class="share-stat-value" id="shareWinrate">0%</div>
+          </div>
+        </div>
+        <div class="share-card-footer">
+          <span>neko.trading</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="action-btn" onclick="downloadShareCard()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        DOWNLOAD
+      </button>
+    </div>
   </div>
 </div>
 
