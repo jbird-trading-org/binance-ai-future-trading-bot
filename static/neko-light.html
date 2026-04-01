@@ -899,6 +899,13 @@ body.light .status-bar {
         .closed-win { color: var(--green); }
         .closed-loss { color: var(--red); }
 
+
+        .balance-chart-container {
+            position: relative;
+            height: 80px;
+            margin-top: 10px;
+        }
+        
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js">
 function toggleLastPos() {
@@ -912,6 +919,102 @@ function toggleLastPos() {
     arrow.textContent = '▶';
   }
 }
+
+  // Balance History Chart
+  let balanceChart = null;
+  
+  async function drawBalanceChart(isUp) {
+    const ctx = document.getElementById('balanceChart');
+    if (!ctx) return;
+    
+    try {
+        // Get income history for last 24h
+        const now = Date.now();
+        const startTime = now - (24 * 60 * 60 * 1000);
+        const data = await binanceGET('/fapi/v1/income', `startTime=${startTime}&limit=100`);
+        
+        if (!Array.isArray(data)) return;
+        
+        // Calculate cumulative balance from income
+        const realized = data.filter(t => t.incomeType === 'REALIZED_PNL');
+        
+        // Build hourly data
+        const hourlyPnl = {};
+        realized.forEach(t => {
+            const d = new Date(parseInt(t.time));
+            const hourKey = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() + '-' + d.getHours();
+            hourlyPnl[hourKey] = (hourlyPnl[hourKey] || 0) + parseFloat(t.income);
+        });
+        
+        // Get current balance as starting point (work backwards)
+        const currentBal = parseFloat(document.getElementById('bal').textContent.replace(/[$,]/g, '')) || 300;
+        
+        // Build timeline (24 hours, most recent first for display)
+        const hours = [];
+        const values = [];
+        let cumulative = currentBal;
+        
+        for (let h = 23; h >= 0; h--) {
+            const d = new Date(now - h * 60 * 60 * 1000);
+            const hourKey = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() + '-' + d.getHours();
+            hours.unshift(d.getHours() + ':00');
+            
+            if (hourlyPnl[hourKey]) {
+                cumulative -= hourlyPnl[hourKey]; // Subtract since we're going backwards
+            }
+            values.unshift(cumulative);
+        }
+        
+        // Add current point
+        hours.push('Now');
+        values.push(currentBal);
+        
+        // Create gradient
+        const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 80);
+        if (isUp) {
+            gradient.addColorStop(0, 'rgba(0, 255, 136, 0.4)');
+            gradient.addColorStop(1, 'rgba(0, 255, 136, 0)');
+        } else {
+            gradient.addColorStop(0, 'rgba(255, 82, 82, 0.4)');
+            gradient.addColorStop(1, 'rgba(255, 82, 82, 0)');
+        }
+        
+        // Destroy old chart
+        if (balanceChart) balanceChart.destroy();
+        
+        balanceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: hours,
+                datasets: [{
+                    data: values,
+                    borderColor: isUp ? '#00ff88' : '#ff5252',
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: { display: false }
+                },
+                animation: {
+                    duration: 1000,
+                    easing: 'easeInOutQuart'
+                }
+            }
+        });
+    } catch (e) {
+        console.error('Balance chart error:', e);
+    }
+  }
+
 </script>
 </head>
 <body>
@@ -1283,9 +1386,12 @@ async function load() {
   animateValue(document.getElementById('bal'), data.bal || 0, '$', '', 2);
   
   const pnl = (typeof data.pnl === "number") ? data.pnl : 0;
+  const isUp = pnl >= 0;
   const pnlEl = document.getElementById('pnl');
   pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2) + ' USDT';
   pnlEl.className = 'balance-pnl' + (pnl < 0 ? ' negative' : '');
+  // Draw balance chart
+  setTimeout(() => drawBalanceChart(isUp), 500);
 
   // Stats
   const stats = data.stats || {};
@@ -1459,6 +1565,102 @@ function toggleLastPos() {
     arrow.textContent = '▶';
   }
 }
+
+  // Balance History Chart
+  let balanceChart = null;
+  
+  async function drawBalanceChart(isUp) {
+    const ctx = document.getElementById('balanceChart');
+    if (!ctx) return;
+    
+    try {
+        // Get income history for last 24h
+        const now = Date.now();
+        const startTime = now - (24 * 60 * 60 * 1000);
+        const data = await binanceGET('/fapi/v1/income', `startTime=${startTime}&limit=100`);
+        
+        if (!Array.isArray(data)) return;
+        
+        // Calculate cumulative balance from income
+        const realized = data.filter(t => t.incomeType === 'REALIZED_PNL');
+        
+        // Build hourly data
+        const hourlyPnl = {};
+        realized.forEach(t => {
+            const d = new Date(parseInt(t.time));
+            const hourKey = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() + '-' + d.getHours();
+            hourlyPnl[hourKey] = (hourlyPnl[hourKey] || 0) + parseFloat(t.income);
+        });
+        
+        // Get current balance as starting point (work backwards)
+        const currentBal = parseFloat(document.getElementById('bal').textContent.replace(/[$,]/g, '')) || 300;
+        
+        // Build timeline (24 hours, most recent first for display)
+        const hours = [];
+        const values = [];
+        let cumulative = currentBal;
+        
+        for (let h = 23; h >= 0; h--) {
+            const d = new Date(now - h * 60 * 60 * 1000);
+            const hourKey = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() + '-' + d.getHours();
+            hours.unshift(d.getHours() + ':00');
+            
+            if (hourlyPnl[hourKey]) {
+                cumulative -= hourlyPnl[hourKey]; // Subtract since we're going backwards
+            }
+            values.unshift(cumulative);
+        }
+        
+        // Add current point
+        hours.push('Now');
+        values.push(currentBal);
+        
+        // Create gradient
+        const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 80);
+        if (isUp) {
+            gradient.addColorStop(0, 'rgba(0, 255, 136, 0.4)');
+            gradient.addColorStop(1, 'rgba(0, 255, 136, 0)');
+        } else {
+            gradient.addColorStop(0, 'rgba(255, 82, 82, 0.4)');
+            gradient.addColorStop(1, 'rgba(255, 82, 82, 0)');
+        }
+        
+        // Destroy old chart
+        if (balanceChart) balanceChart.destroy();
+        
+        balanceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: hours,
+                datasets: [{
+                    data: values,
+                    borderColor: isUp ? '#00ff88' : '#ff5252',
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: { display: false }
+                },
+                animation: {
+                    duration: 1000,
+                    easing: 'easeInOutQuart'
+                }
+            }
+        });
+    } catch (e) {
+        console.error('Balance chart error:', e);
+    }
+  }
+
 </script>
 </body>
 </html>

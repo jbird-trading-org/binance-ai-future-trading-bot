@@ -116,7 +116,7 @@ async function getClosedTrades() {
         const realized = data.filter(t => t.incomeType === 'REALIZED_PNL');
         
         // Binance returns oldest first with startTime, so take last 5 (most recent)
-        return realized.slice(-5).map(t => ({
+        return realized.slice(-5).reverse().map(t => ({
             symbol: t.symbol,
             side: parseFloat(t.income) > 0 ? 'WIN' : 'LOSS',
             pnl: parseFloat(t.income),
