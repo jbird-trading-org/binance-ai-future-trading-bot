@@ -1369,7 +1369,7 @@ async function load() {
         const lastTradeSection = document.getElementById('lastTradeSection');
         const lastTradeDiv = document.getElementById('lastTrade');
         if (closedTrades && closedTrades.length > 0) {
-            const show = closedTrades.slice(0, 3); // Top 3
+            const show = closedTrades.slice(0, 5); // Top 3
             lastTradeDiv.innerHTML = show.map(t => {
                 const cls = t.side === 'WIN' ? 'closed-win' : 'closed-loss';
                 const prefix = t.pnl >= 0 ? '+' : '';
@@ -1395,7 +1395,7 @@ return '<div class="closed-row-small"><span class="closed-symbol">' + t.symbol.r
         const lastTradeSection = document.getElementById('lastTradeSection');
         const lastTradeDiv = document.getElementById('lastTrade');
         if (closedTrades && closedTrades.length > 0) {
-            const show = closedTrades.slice(0, 3); // Top 3
+            const show = closedTrades.slice(0, 5); // Top 3
             lastTradeDiv.innerHTML = show.map(t => {
                 const cls = t.side === 'WIN' ? 'closed-win' : 'closed-loss';
                 const prefix = t.pnl >= 0 ? '+' : '';
