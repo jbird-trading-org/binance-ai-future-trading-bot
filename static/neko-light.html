@@ -1084,7 +1084,7 @@ function toggleTheme() {
   isDark = !isDark;
   document.body.classList.toggle('light', !isDark);
   document.getElementById('themeBtn').textContent = isDark ? '🌙' : '☀️';
-  showToast('info', 'Theme', isDark ? 'Dark mode activated' : 'Light mode activated');
+  // Theme toast removed
 }
 
 // Toast System
