@@ -876,9 +876,13 @@ body.light .status-bar {
             padding: 6px 0;
             font-size: 12px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            gap: 8px;
         }
         .closed-row-small:last-child { border-bottom: none; }
-        .closed-symbol { font-weight: 600; color: var(--text); }
+        .closed-symbol { font-weight: 600; min-width: 50px; }
+        .closed-date { color: var(--text-muted); font-size: 11px; flex: 1; text-align: center; }
+        .closed-time { color: var(--text-muted); font-size: 10px; margin-left: 4px; }
+        .closed-pnl { font-weight: 600; min-width: 65px; text-align: right; }
         
         .closed-row {
             display: flex;
@@ -1370,7 +1374,10 @@ async function load() {
                 const cls = t.side === 'WIN' ? 'closed-win' : 'closed-loss';
                 const prefix = t.pnl >= 0 ? '+' : '';
                 const date = new Date(t.time).toLocaleString();
-                return '<div class="closed-row-small"><span class="closed-symbol">' + t.symbol.replace('USDT', '') + '</span><span style="color:var(--text)">' + date + '</span><span class="' + cls + '">' + prefix + '$' + t.pnl.toFixed(2) + '</span></div>';
+                var d = new Date(t.time);
+var dateStr = d.toLocaleDateString();
+var timeStr = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+return '<div class="closed-row-small"><span class="closed-symbol">' + t.symbol.replace('USDT', '') + '</span><span class="closed-date">' + dateStr + '</span><span class="closed-time">' + timeStr + '</span><span class="closed-pnl ' + cls + '">' + prefix + '$' + t.pnl.toFixed(2) + '</span></div>';
             }).join('');
             lastTradeSection.style.display = 'block';
         } else {
@@ -1393,7 +1400,10 @@ async function load() {
                 const cls = t.side === 'WIN' ? 'closed-win' : 'closed-loss';
                 const prefix = t.pnl >= 0 ? '+' : '';
                 const date = new Date(t.time).toLocaleString();
-                return '<div class="closed-row-small"><span class="closed-symbol">' + t.symbol.replace('USDT', '') + '</span><span style="color:var(--text)">' + date + '</span><span class="' + cls + '">' + prefix + '$' + t.pnl.toFixed(2) + '</span></div>';
+                var d = new Date(t.time);
+var dateStr = d.toLocaleDateString();
+var timeStr = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+return '<div class="closed-row-small"><span class="closed-symbol">' + t.symbol.replace('USDT', '') + '</span><span class="closed-date">' + dateStr + '</span><span class="closed-time">' + timeStr + '</span><span class="closed-pnl ' + cls + '">' + prefix + '$' + t.pnl.toFixed(2) + '</span></div>';
             }).join('');
             lastTradeSection.style.display = 'block';
         } else {

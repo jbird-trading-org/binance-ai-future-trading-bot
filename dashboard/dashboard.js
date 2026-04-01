@@ -114,7 +114,7 @@ async function getClosedTrades() {
         // Get realized PnL only, take first 3 (most recent)
         const realized = data.filter(t => t.incomeType === 'REALIZED_PNL');
         
-        return realized.slice(-3).map(t => ({
+        return realized.slice(-3).reverse().map(t => ({
             symbol: t.symbol,
             side: parseFloat(t.income) > 0 ? 'WIN' : 'LOSS',
             pnl: parseFloat(t.income),
