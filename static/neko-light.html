@@ -869,21 +869,63 @@ body.light .status-bar {
             margin-top: 15px;
         }
         
+        .closed-date-header {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 8px 0 4px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 6px;
+        }
+        .closed-date-header:first-child { padding-top: 0; }
+        
         .closed-row-small {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 6px 0;
+            padding: 8px 6px;
             font-size: 12px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
             gap: 8px;
             color: var(--text);
+            border-radius: 6px;
+            margin-bottom: 4px;
+            transition: all 0.2s ease;
         }
-        .closed-row-small:last-child { border-bottom: none; }
-        .closed-symbol { font-weight: 600; min-width: 50px; color: var(--text); }
-        .closed-date { color: var(--text-muted); font-size: 11px; flex: 1; text-align: center; }
+        .closed-row-small:last-child { border-bottom: none; margin-bottom: 0; }
+        .closed-row-small:hover { background: var(--surface2); transform: translateX(2px); }
+        
+        .closed-symbol { font-weight: 700; min-width: 50px; color: var(--text); }
+        .closed-date { color: var(--text-muted); font-size: 10px; flex: 1; text-align: center; }
         .closed-time { color: var(--text-muted); font-size: 10px; margin-left: 4px; }
-        .closed-pnl { font-weight: 600; min-width: 65px; text-align: right; }
+        .closed-pnl { font-weight: 700; min-width: 70px; text-align: right; }
+        
+        .closed-win { color: var(--green); }
+        .closed-loss { color: var(--red); }
+        
+        .closed-summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 6px;
+            font-size: 11px;
+            font-weight: 600;
+            background: var(--surface2);
+            border-radius: 6px;
+            margin-top: 8px;
+            border: 1px solid var(--border);
+        }
+        
+        .closed-summary .total { color: var(--text); }
+        .closed-summary .stats { color: var(--text-muted); font-size: 10px; }
+        
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .closed-row-new { animation: fadeSlideIn 0.4s ease-out; }
         
         .closed-row {
             display: flex;
