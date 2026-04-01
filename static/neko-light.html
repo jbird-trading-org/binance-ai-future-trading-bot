@@ -874,11 +874,16 @@ body.light .status-bar {
 }
 
         .closed-section {
-            background: rgba(15, 15, 25, 0.8);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
             padding: 15px;
             margin-top: 15px;
+        }
+        
+        body.light .closed-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
         }
         
         .closed-row-small {
@@ -887,11 +892,12 @@ body.light .status-bar {
             align-items: center;
             padding: 6px 0;
             font-size: 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--border);
             gap: 8px;
+            color: var(--text);
         }
         .closed-row-small:last-child { border-bottom: none; }
-        .closed-symbol { font-weight: 600; min-width: 50px; }
+        .closed-symbol { font-weight: 600; min-width: 50px; color: var(--text); }
         .closed-date { color: var(--text-muted); font-size: 11px; flex: 1; text-align: center; }
         .closed-time { color: var(--text-muted); font-size: 10px; margin-left: 4px; }
         .closed-pnl { font-weight: 600; min-width: 65px; text-align: right; }
