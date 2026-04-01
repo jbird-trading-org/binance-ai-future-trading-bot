@@ -316,7 +316,11 @@ def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
         sl_url = "https://fapi.binance.com/fapi/v1/algoOrder?{}&signature={}".format(sl_params, sl_sig)
         sl_r = requests.post(sl_url, headers=headers, timeout=10)
         if sl_r.status_code != 200:
-            print(f"  ⚠️ SL order failed: {sl_r.text[:100]}")
+            sl_data = sl_r.json()
+            if 'Invalid symbol status' in sl_r.text:
+                print(f"  ⚠️ SL order failed: Symbol {symbol} cannot be traded (Invalid status)")
+            else:
+                print(f"  ⚠️ SL order failed: {sl_r.text[:100]}")
         
         # Place TAKE PROFIT order using Algo API
         tp_side = "SELL" if side == "BUY" else "BUY"
@@ -1441,23 +1445,26 @@ def main():
                 qty_raw = trade_amount / analysis['current']
                 
                 # Floor to step size to pass Binance LOT_SIZE filter
-                quantity = math.floor(qty_raw / step_size) * step_size
+                # Use int division then multiply to avoid float precision issues
+                qty_steps = int(qty_raw / step_size)
+                quantity = qty_steps * step_size
                 
-                # Ensure minimum notional ($5 Binance minimum) - recalculate if needed
-                notional = quantity * analysis['current']
-                if notional < min_notional:
-                    # Need more quantity to meet notional requirement
-                    quantity = math.ceil(min_notional / analysis['current'] / step_size) * step_size
-                    notional = quantity * analysis['current']
-                
-                # Ensure quantity >= minimum
+                # Ensure minimum quantity
                 if quantity < min_qty:
                     quantity = min_qty
+                
+                notional = quantity * analysis['current']
+                
+                # Ensure minimum notional ($5 Binance minimum)
+                if notional < min_notional:
+                    qty_needed = int(min_notional / analysis['current'] / step_size + 1) * int(step_size)
+                    quantity = max(min_qty, qty_needed)
                     notional = quantity * analysis['current']
                 
                 # Final check - if still not meeting notional, skip this signal
                 if notional < min_notional:
                     print(f"  Skipped: notional ${notional:.2f} < ${min_notional}")
+                    return {"error": "notional_too_low"}
                     return None
                 
                 set_leverage(symbol, LEVERAGE)
