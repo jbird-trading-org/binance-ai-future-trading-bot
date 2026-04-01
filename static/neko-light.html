@@ -919,6 +919,63 @@ function toggleLastPos() {
     svg.style.transform = 'rotate(0deg) scale(1)';
   }
 }
+
+// Share Modal Functions
+function openShareModal() {
+    var modal = document.getElementById('shareModal');
+    var card = document.getElementById('shareCard');
+    
+    // Get current stats
+    var pnlText = document.getElementById('pnl').textContent || '$0';
+    var pnl = parseFloat(pnlText.replace(/[+$,]/g, '')) || 0;
+    var winrate = document.getElementById('winrate').textContent || '0%';
+    
+    // Update share card
+    var pnlValue = document.getElementById('sharePnlValue');
+    pnlValue.textContent = '$' + pnl.toFixed(2);
+    pnlValue.className = 'share-pnl-value' + (pnl < 0 ? ' loss' : '');
+    
+    document.getElementById('shareDate').textContent = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    document.getElementById('shareWinrate').textContent = winrate;
+    
+    // Get wins/losses from stats - extract from HTML
+    var stats = document.getElementById('statsGrid');
+    if (stats) {
+        var statsHtml = stats.innerHTML;
+        var winMatch = statsHtml.match(/WIN.*?(\d+)/);
+        var lossMatch = statsHtml.match(/LOSS.*?(\d+)/);
+    }
+    
+    document.getElementById('shareWin').textContent = winMatch ? winMatch[1] : '0';
+    document.getElementById('shareLoss').textContent = lossMatch ? lossMatch[1] : '0';
+    
+    modal.style.display = 'flex';
+}
+
+function closeShareModal() {
+    document.getElementById('shareModal').style.display = 'none';
+}
+
+function downloadShareCard() {
+    // Use html2canvas if available, otherwise show alert
+    if (typeof html2canvas !== 'undefined') {
+        html2canvas(document.getElementById('shareCard')).then(function(canvas) {
+            var link = document.createElement('a');
+            link.download = 'neko-pnl.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+    } else {
+        alert('Screenshot the card to share!');
+    }
+}
+
+// Close modal on outside click
+document.addEventListener('click', function(e) {
+    var modal = document.getElementById('shareModal');
+    if (e.target === modal) closeShareModal();
+});
+
 </script>
 </head>
 <body>
@@ -1537,6 +1594,63 @@ function toggleLastPos() {
     svg.style.transform = 'rotate(0deg) scale(1)';
   }
 }
+
+// Share Modal Functions
+function openShareModal() {
+    var modal = document.getElementById('shareModal');
+    var card = document.getElementById('shareCard');
+    
+    // Get current stats
+    var pnlText = document.getElementById('pnl').textContent || '$0';
+    var pnl = parseFloat(pnlText.replace(/[+$,]/g, '')) || 0;
+    var winrate = document.getElementById('winrate').textContent || '0%';
+    
+    // Update share card
+    var pnlValue = document.getElementById('sharePnlValue');
+    pnlValue.textContent = '$' + pnl.toFixed(2);
+    pnlValue.className = 'share-pnl-value' + (pnl < 0 ? ' loss' : '');
+    
+    document.getElementById('shareDate').textContent = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    document.getElementById('shareWinrate').textContent = winrate;
+    
+    // Get wins/losses from stats - extract from HTML
+    var stats = document.getElementById('statsGrid');
+    if (stats) {
+        var statsHtml = stats.innerHTML;
+        var winMatch = statsHtml.match(/WIN.*?(\d+)/);
+        var lossMatch = statsHtml.match(/LOSS.*?(\d+)/);
+    }
+    
+    document.getElementById('shareWin').textContent = winMatch ? winMatch[1] : '0';
+    document.getElementById('shareLoss').textContent = lossMatch ? lossMatch[1] : '0';
+    
+    modal.style.display = 'flex';
+}
+
+function closeShareModal() {
+    document.getElementById('shareModal').style.display = 'none';
+}
+
+function downloadShareCard() {
+    // Use html2canvas if available, otherwise show alert
+    if (typeof html2canvas !== 'undefined') {
+        html2canvas(document.getElementById('shareCard')).then(function(canvas) {
+            var link = document.createElement('a');
+            link.download = 'neko-pnl.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+    } else {
+        alert('Screenshot the card to share!');
+    }
+}
+
+// Close modal on outside click
+document.addEventListener('click', function(e) {
+    var modal = document.getElementById('shareModal');
+    if (e.target === modal) closeShareModal();
+});
+
 </script>
 </body>
 </html>
