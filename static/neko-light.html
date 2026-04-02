@@ -696,7 +696,7 @@ body::before {
 
 .pos-cell {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   text-align: right;
   display: flex;
   align-items: center;
@@ -708,11 +708,16 @@ body::before {
 
 .pos-cell.sym {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-align: left;
   justify-content: flex-start;
 }
+
+.price { color: var(--text-dim); font-size: 8px; }
+.price.current { color: var(--text); font-weight: 500; }
+.sl { color: var(--red); font-size: 8px; }
+.tp { color: var(--green); font-size: 8px; }
 
 .pos-badge {
   font-size: 7px;
@@ -845,9 +850,13 @@ body.light .status-bar {
   .performer-roi { font-size: 20px; }
   
   .pos-header, .pos-row {
-    grid-template-columns: 55px 40px 1fr 65px 65px 58px 58px 55px;
-    padding: 8px 8px;
+    grid-template-columns: 50px 36px 1fr 58px 58px 52px 52px 50px;
+    padding: 6px 6px;
   }
+  
+  .pos-cell { font-size: 8px; }
+  .pos-cell.sym { font-size: 10px; }
+  .price, .sl, .tp { font-size: 7px; }
   
   .status-bar {
     font-size: 7px;
@@ -1172,6 +1181,14 @@ function fmt(v, d = 4) {
   return formatNumber(v, d, '$');
 }
 
+// Abbreviated price for compact display
+function fmtK(v) {
+  if (!v && v !== 0) return '--';
+  if (v >= 1000000) return '$' + (v/1000000).toFixed(2) + 'M';
+  if (v >= 1000) return '$' + (v/1000).toFixed(1) + 'K';
+  return '$' + v.toFixed(2);
+}
+
 function fmtROI(v) {
   if (!v && v !== 0) return '--';
   return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
@@ -1441,10 +1458,10 @@ return '<div class="closed-row-small"><span class="closed-symbol">' + t.symbol.r
     <div class="pos-cell sym">${p.s.replace('USDT', '')}</div>
     <div class="pos-cell"><span class="pos-badge ${isLong ? 'long' : 'short'}">${p.d}</span></div>
     <div class="pos-cell"></div>
-    <div class="pos-cell price current">${fmt(p.e)}</div>
-    <div class="pos-cell price current">${fmt(p.m)}</div>
-    <div class="pos-cell sl">${fmt(sl(p))}</div>
-    <div class="pos-cell tp">${fmt(tp(p))}</div>
+    <div class="pos-cell price current">${fmtK(p.e)}</div>
+    <div class="pos-cell price current">${fmtK(p.m)}</div>
+    <div class="pos-cell sl">${fmtK(sl(p))}</div>
+    <div class="pos-cell tp">${fmtK(tp(p))}</div>
     <div class="pos-cell roi ${r >= 0 ? 'g' : 'r'}">${fmtROI(r)}</div>
     <div class="tooltip">
       <div class="tooltip-row"><span class="tooltip-label">Entry Time</span><span class="tooltip-value">${entryTime}</span></div>
