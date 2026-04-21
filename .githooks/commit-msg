@@ -1,0 +1,29 @@
+#!/bin/bash
+# Git commit-msg hook - enforce Conventional Commits
+# Installs to .git/hooks/commit-msg
+
+COMMIT_MSG=$(cat "$1")
+
+# Pattern: type(scope)?: description  OR  type!: description
+PATTERN="^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?(!)?:\s.{1,}"
+
+# Allow merge/revert commits
+if [[ "$COMMIT_MSG" =~ ^Merge ]] || [[ "$COMMIT_MSG" =~ ^Revert ]]; then
+    exit 0
+fi
+
+if [[ ! "$COMMIT_MSG" =~ $PATTERN ]]; then
+    echo ""
+    echo "❌ Commit message tidak sesuai Conventional Commits!"
+    echo ""
+    echo "Format: <type>(<scope>): <description>"
+    echo ""
+    echo "Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build"
+    echo ""
+    echo "Contoh:"
+    echo "  feat(scanner): add multi-timeframe support"
+    echo "  fix(dashboard): resolve position overflow"
+    echo "  chore: update dependencies"
+    echo ""
+    exit 1
+fi
