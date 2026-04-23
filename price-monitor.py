@@ -437,8 +437,7 @@ def main():
                     sl_price = float(pos_data['sl'])
                     tp_price = float(pos_data['tp1'])
                     print(f"  {symbol}: [SAVED] Entry={entry:.6f} Current={current:.6f} SL={sl_price:.6f} TP={tp_price:.6f}")
-                    # Skip ATR calculation since we have saved data
-                    continue
+                    # Continue to SL/TP checks and trailing logic below
                 else:
                     # No saved SL/TP - skip TP/SL monitoring for this position
                     print(f"  {symbol}: [NO DATA] Entry={entry:.6f} Current={current:.6f} - Skipping (no SL/TP data)")
@@ -549,19 +548,8 @@ def main():
                     })
                     sl_price = new_trail_sl
                 else:
-                    # Calculate SL/TP from ATR (template formula)
-                    atr = get_atr(symbol)
-                    if not atr:
-                        atr = entry * 0.02  # Default 2%
-                    
-                    if side == 'LONG':
-                        sl_price = entry - (atr * 1.5)  # Template: Entry - 1.5×ATR
-                        tp_price = entry + (atr * 3.0)   # Template: Entry + 3×ATR
-                    else:  # SHORT
-                        sl_price = entry + (atr * 1.5)
-                        tp_price = entry - (atr * 3.0)
-                    
-                    print(f"  {symbol}: [CALC] Entry={entry:.6f} Current={current:.6f} SL={sl_price:.6f} TP={tp_price:.6f} (ATR={atr:.6f})")
+                    # Trailing not active yet - keep current SL/TP
+                    pass
                 
                 # Check for Multi-TP levels (partial closes)
                 original_amt = abs(amt)  # Store original amount for Multi-TP calculation
