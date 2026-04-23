@@ -1,30 +1,17 @@
 # === Neko Futures Trader - CONFIGURATION ===
-# Scanner v1.0.36 - Stable ATR-based SL/TP with PRICE fallback
+# Scanner v1.0.40 - Percentage-based SL/TP
 
 # ── TRADING ──────────────────────────────────────────────────────────────────
 LEVERAGE = 10                    # Futures leverage (10x)
-MAX_POSITIONS = 5  # Reduced from 7 for better risk management               # Max concurrent positions
+MAX_POSITIONS = 5                # Max concurrent positions
 AUTO_FILL_EMPTY_SLOTS = True     # Auto-find entries when positions < MAX
 ENTRY_PERCENT = 6                # % of balance per trade
 
 # ── SL/TP STRATEGY ────────────────────────────────────────────────────────────
-# PRIMARY: ATR-based (adapts to token volatility)
-# FALLBACK: Uses PRICE_TP/PRICE_SL when ATR is too tight or too wide
+# Percentage-based: PRICE_SL / PRICE_TP
 
-# ATR Multipliers (for fakeout protection - wider SL/TP)
-ATR_HIGH_VOLATILITY = 3.0       # ATR > X% = high volatility token
-ATR_MULTIPLIER_SL_HIGH = 3.0     # Wider SL for volatile tokens
-ATR_MULTIPLIER_TP_HIGH = 6.0     # Wider TP for volatile tokens
-ATR_MULTIPLIER_SL_NORMAL = 2.5    # Normal SL multiplier
-ATR_MULTIPLIER_TP_NORMAL = 5.0   # Normal TP multiplier
-ATR_MULTIPLIER_SL_LOW = 2.0      # Tighter SL for stable tokens
-ATR_MULTIPLIER_TP_LOW = 4.0      # Tighter TP for stable tokens
-
-# PRICE FALLBACK (when ATR-based SL would be too tight/wide)
-PRICE_TP = 10.0                  # Take Profit: +10% for LONG, -10% for SHORT
+PRICE_TP = 15.0                  # Take Profit: +15% for LONG, -15% for SHORT
 PRICE_SL = 5.0                   # Stop Loss: -5% for LONG, +5% for SHORT
-PRICE_FALLBACK_MAX_ATR = 10.0    # If ATR% > 10%, use PRICE_TP/PRICE_SL instead
-PRICE_FALLBACK_MIN_ATR = 1.0     # If ATR% < 1%, use PRICE_TP/PRICE_SL instead
 
 # ── BREAKEVEN & TRAILING ─────────────────────────────────────────────────────
 MIN_PROFIT_BREAKEVEN = 5.0       # % profit to move SL to entry price

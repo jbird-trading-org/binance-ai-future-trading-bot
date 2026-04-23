@@ -58,7 +58,7 @@ def quick_scan():
     """Trigger immediate scan using user's configured environment"""
     print("🔍 Quick scan triggered...")
     # Use user's env variables from .env file
-    os.system('cd /root/.openclaw/workspace/neko-futures-trader && python3 scanner-v8.py >> /root/.openclaw/workspace/scanner.log 2>&1')
+    os.system('cd /root/.openclaw/workspace/neko-futures-trader && python3 scanner.py >> /root/.openclaw/workspace/scanner.log 2>&1')
 
 def main():
     print("👀 Watching positions...")

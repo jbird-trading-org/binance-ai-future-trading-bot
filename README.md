@@ -12,7 +12,7 @@ Automated Binance Futures trading bot with advanced signal detection, risk manag
 
 ```
 neko-futures-trader/
-├── scanner-v8.py              # Main scanner (5min intervals)
+├── scanner.py                 # Main scanner (5min intervals)
 ├── price-monitor.py           # SL/TP monitor (1sec intervals)
 ├── position_command.py         # Position checker
 ├── dashboard_api.py            # Dashboard API server
@@ -136,29 +136,23 @@ Access at: `https://YOUR_IP:8443/neko-light.html`
 
 ---
 
-## ⚙️ ATR-Based SL/TP System
+## ⚙️ SL/TP System
 
-**R:R Ratio 1:4 (Optimized for 42.9% winrate)**
+**Percentage-based: R:R Ratio 1:3**
 
-| Volatility | ATR Range | SL | TP | Ratio |
-|------------|-----------|-----|-----|-------|
-| HIGH | > 10% | 2x ATR | 8x ATR | 1:4 |
-| NORMAL | 5-10% | 2x ATR | 8x ATR | 1:4 |
-| LOW | < 5% | 1.5x ATR | 6x ATR | 1:4 |
-
-### Why 1:4 R:R?
-
-With 42.9% winrate, break-even R:R = 1.33:1  
-1:4 ratio ensures profitability even with drawdown periods.
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| SL | 5% | Stop Loss: -5% LONG, +5% SHORT |
+| TP | 15% | Take Profit: +15% LONG, -15% SHORT |
+| Ratio | 1:3 | Risk:Reward |
 
 ### Example
 ```
-Entry: $100, ATR: $2 (2%)
+Entry: $100
 
-HIGH VOL:
-  SL = $100 - (2 × $2) = $96
-  TP = $100 + (8 × $2) = $116
-  Risk: $4 | Reward: $16 = 1:4 ratio ✅
+SL = $100 × 0.95 = $95
+TP = $100 × 1.15 = $115
+Risk: $5 | Reward: $15 = 1:3 ratio ✅
 ```
 
 ---

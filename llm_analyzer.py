@@ -64,7 +64,7 @@ TECHNICAL DATA:
 - Weekly Change: {analysis.get('weekly_change', 0):+.1f}%
 - Score: {score}/13
 - SL: ${analysis.get('sl', 0):.6f} | TP: ${analysis.get('tp1', 0):.6f}
-- SL Method: {analysis.get('sl_method', 'ATR')}
+- SL Method: {analysis.get('sl_method', 'PRICE')}
 
 RULES:
 1. Is this a good {direction} entry RIGHT NOW?
@@ -318,7 +318,7 @@ if __name__ == "__main__":
         'runner_score': 8,
         'sl': 136.5,
         'tp1': 155.0,
-        'sl_method': 'ATR',
+        'sl_method': 'PRICE',
     }
 
     print("=== LLM Analyzer Test ===")

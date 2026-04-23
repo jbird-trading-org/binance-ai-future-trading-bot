@@ -19,3 +19,4 @@ instant_scan
 .scanner_signals
 .scanner_log
 .positions_sl_tp.json
+.learnings/

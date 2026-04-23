@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Price Monitor - Auto close positions when SL/TP hit
-Uses SL/TP saved by scanner-v8.py
+Uses SL/TP saved by scanner.py
 """
 
 import os

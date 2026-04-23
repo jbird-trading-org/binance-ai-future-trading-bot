@@ -349,7 +349,7 @@ health_check.register_check('memory', check_memory)
 def restart_scanner_action(error, context):
     """Auto-restart scanner on critical error"""
     logger.warning('Attempting to restart scanner', error=str(error))
-    os.system('cd /root/.openclaw/workspace/neko-futures-trader && nohup python3 scanner-v8.py > scanner.log 2>&1 &')
+    os.system('cd /root/.openclaw/workspace/neko-futures-trader && nohup python3 scanner.py > scanner.log 2>&1 &')
 
 def restart_price_monitor_action(error, context):
     """Auto-restart price monitor on critical error"""

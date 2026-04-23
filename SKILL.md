@@ -30,7 +30,7 @@ Trigger when user mentions:
 
 ```
 neko-futures-trader/
-├── scanner-v8.py              # Scanner (5min intervals)
+├── scanner.py                 # Scanner (5min intervals)
 ├── price-monitor.py           # SL/TP monitor (1sec)
 ├── position_command.py        # Position checker
 ├── dashboard_api.py           # Dashboard API
@@ -94,7 +94,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/root/.openclaw/workspace/neko-futures-trader
-ExecStart=/usr/bin/python3 /root/.openclaw/skills/neko-futures-trader/scanner-v8.py
+ExecStart=/usr/bin/python3 /root/.openclaw/skills/neko-futures-trader/scanner.py
 Restart=always
 RestartSec=10
 StandardOutput=append:/root/.openclaw/workspace/neko-futures-trader/logs/scanner.log
@@ -250,13 +250,13 @@ LLM_TIMEOUT = 15                # Seconds, then fail-open
 | LEVERAGE | 10x | Leverage |
 | MIN_SCORE | 3 | Signal threshold |
 
-### R:R Ratio 1:4
+### R:R Ratio 1:3
 
-| Volatility | ATR Range | SL | TP |
-|------------|-----------|-----|-----|
-| HIGH | > 10% | 2x ATR | 8x ATR |
-| NORMAL | 5-10% | 2x ATR | 8x ATR |
-| LOW | < 5% | 1.5x ATR | 6x ATR |
+| Parameter | Value |
+|-----------|-------|
+| SL | 5% (fixed) |
+| TP | 15% (fixed) |
+| Ratio | 1:3 |
 
 ---
 

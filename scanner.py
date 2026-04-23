@@ -1363,7 +1363,7 @@ def format_signal(analysis, stats):
 
 💡 INSIGHT: {s['direction']} | {s['structure']} | RSI: {s['rsi']:.1f}
 🎯 Entry: ${s['current']:.6f}
-🛡 SL: ${s['sl']:.6f} ({s.get('sl_method','ATR')}-based)
+🛡 SL: ${s['sl']:.6f} ({s.get('sl_method','PRICE')})
 📈 TP: ${s['tp1']:.6f}
 📊 ATR%: {s.get('atr_pct', 0):.2f}% | Volatility: {'HIGH' if s.get('atr_pct',0)>3 else 'NORMAL' if s.get('atr_pct',0)>1 else 'LOW'}
 ⏰ Timeframe: 1H
