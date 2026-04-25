@@ -337,6 +337,30 @@ def close_position(symbol, side, quantity):
 
     return result
 
+def log_trade(symbol, side, entry, exit_price, qty, pnl, reason):
+    """Log closed trade to .trade_history.json for metrics tracking."""
+    import json
+    from datetime import datetime
+    history_file = os.path.join(os.path.dirname(__file__), '.trade_history.json')
+    trades = []
+    if os.path.exists(history_file):
+        try:
+            with open(history_file, 'r') as f:
+                trades = json.load(f)
+        except:
+            trades = []
+    trades.append({
+        'symbol': symbol, 'side': side,
+        'entry': entry, 'exit': exit_price, 'qty': qty,
+        'pnl': pnl,
+        'pnl_pct': ((exit_price - entry) / entry * 100) if side == 'LONG' else ((entry - exit_price) / entry * 100),
+        'reason': reason, 'closed_at': datetime.now().isoformat(),
+    })
+    with open(history_file, 'w') as f:
+        json.dump(trades, f, indent=2)
+    print(f"    📝 Trade logged: {symbol} {side} PNL={pnl:.2f} ({reason})")
+
+
 def notify_trade(notification_type, data):
     """Send notification based on config settings"""
     # Check if posting is enabled
@@ -607,15 +631,12 @@ def main():
                     print(f"    🚨 LONG SL HIT! {current:.6f} <= {sl_price:.6f}")
                     result = close_position(symbol, 'SELL', abs(amt))
                     if result and 'orderId' in result:
-                        # Calculate PnL from entry and exit
-                        if side == 'LONG':
-                            pnl = (current - entry) * abs(amt)
-                        else:
-                            pnl = (entry - current) * abs(amt)
+                        pnl = (current - entry) * abs(amt)
                         notify_trade('close', {
                             'symbol': symbol, 'close_type': 'SL',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL')
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -623,15 +644,12 @@ def main():
                     print(f"    🚨 SHORT SL HIT! {current:.6f} >= {sl_price:.6f}")
                     result = close_position(symbol, 'BUY', abs(amt))
                     if result and 'orderId' in result:
-                        # Calculate PnL from entry and exit
-                        if side == 'LONG':
-                            pnl = (current - entry) * abs(amt)
-                        else:
-                            pnl = (entry - current) * abs(amt)
+                        pnl = (entry - current) * abs(amt)
                         notify_trade('close', {
                             'symbol': symbol, 'close_type': 'SL',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL')
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -640,15 +658,12 @@ def main():
                     print(f"    🎯 LONG TP HIT! {current:.6f} >= {tp_price:.6f}")
                     result = close_position(symbol, 'SELL', abs(amt))
                     if result and 'orderId' in result:
-                        # Calculate PnL from entry and exit
-                        if side == 'LONG':
-                            pnl = (current - entry) * abs(amt)
-                        else:
-                            pnl = (entry - current) * abs(amt)
+                        pnl = (current - entry) * abs(amt)
                         notify_trade('close', {
                             'symbol': symbol, 'close_type': 'TP',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP')
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -656,15 +671,12 @@ def main():
                     print(f"    🎯 SHORT TP HIT! {current:.6f} <= {tp_price:.6f}")
                     result = close_position(symbol, 'BUY', abs(amt))
                     if result and 'orderId' in result:
-                        # Calculate PnL from entry and exit
-                        if side == 'LONG':
-                            pnl = (current - entry) * abs(amt)
-                        else:
-                            pnl = (entry - current) * abs(amt)
+                        pnl = (entry - current) * abs(amt)
                         notify_trade('close', {
                             'symbol': symbol, 'close_type': 'TP',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP')
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -715,15 +727,12 @@ def main():
                     print(f"    🚨 LONG SL HIT! {current:.6f} <= {sl_price:.6f}")
                     result = close_position(symbol, 'SELL', abs(amt))
                     if result and 'orderId' in result:
-                        # Calculate PnL from entry and exit
-                        if side == 'LONG':
-                            pnl = (current - entry) * abs(amt)
-                        else:
-                            pnl = (entry - current) * abs(amt)
+                        pnl = (current - entry) * abs(amt)
                         notify_trade('close', {
                             'symbol': symbol, 'close_type': 'SL',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL')
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -731,15 +740,12 @@ def main():
                     print(f"    🚨 SHORT SL HIT! {current:.6f} >= {sl_price:.6f}")
                     result = close_position(symbol, 'BUY', abs(amt))
                     if result and 'orderId' in result:
-                        # Calculate PnL from entry and exit
-                        if side == 'LONG':
-                            pnl = (current - entry) * abs(amt)
-                        else:
-                            pnl = (entry - current) * abs(amt)
+                        pnl = (entry - current) * abs(amt)
                         notify_trade('close', {
                             'symbol': symbol, 'close_type': 'SL',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL')
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -748,15 +754,12 @@ def main():
                     print(f"    🎯 LONG TP HIT! {current:.6f} >= {tp_price:.6f}")
                     result = close_position(symbol, 'SELL', abs(amt))
                     if result and 'orderId' in result:
-                        # Calculate PnL from entry and exit
-                        if side == 'LONG':
-                            pnl = (current - entry) * abs(amt)
-                        else:
-                            pnl = (entry - current) * abs(amt)
+                        pnl = (current - entry) * abs(amt)
                         notify_trade('close', {
                             'symbol': symbol, 'close_type': 'TP',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP')
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -764,15 +767,12 @@ def main():
                     print(f"    🎯 SHORT TP HIT! {current:.6f} <= {tp_price:.6f}")
                     result = close_position(symbol, 'BUY', abs(amt))
                     if result and 'orderId' in result:
-                        # Calculate PnL from entry and exit
-                        if side == 'LONG':
-                            pnl = (current - entry) * abs(amt)
-                        else:
-                            pnl = (entry - current) * abs(amt)
+                        pnl = (entry - current) * abs(amt)
                         notify_trade('close', {
                             'symbol': symbol, 'close_type': 'TP',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP')
                         add_to_recently_closed(symbol)
                     continue
                 

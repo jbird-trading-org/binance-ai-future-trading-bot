@@ -781,6 +781,204 @@ def calc_adx(candles, period=14):
     return {'adx': 20, 'plus_di': 25, 'minus_di': 25}
 
 
+def calc_choppiness(candles, period=14):
+    """Choppiness Index (CHOP) — adapted from Jesse.
+    
+    Measures trend vs range. High = choppy/sideways, Low = trending.
+    Returns: float 0-100. >60 = very choppy (avoid trading), <40 = trending.
+    """
+    if len(candles) < period + 1:
+        return 50.0
+    
+    highs = [float(c[1]) for c in candles]
+    lows = [float(c[2]) for c in candles]
+    closes = [float(c[4]) for c in candles]
+    
+    # Calculate ATR sum over period
+    atr_sum = 0.0
+    for i in range(-period, 0):
+        high = highs[i]
+        low = lows[i]
+        prev_close = closes[i-1]
+        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        atr_sum += tr
+    
+    # Highest high and lowest low over period
+    max_high = max(highs[-period:])
+    min_low = min(lows[-period:])
+    
+    # Choppiness Index
+    if max_high == min_low or atr_sum == 0:
+        return 50.0
+    
+    chop = 100.0 * (atr_sum / (period * (max_high - min_low)))
+    # Apply scalar like Jesse (scalar=100 is default, result 0-100)
+    return min(100.0, max(0.0, chop))
+
+
+def calc_fisher(candles, period=9):
+    """Fisher Transform — adapted from Jesse.
+    
+    Identifies price reversals by normalizing price to Gaussian distribution.
+    Returns: dict {'fisher': float, 'signal': float, 'prev_fisher': float}
+    fisher > 0 = bullish, fisher < 0 = bearish.
+    Cross from negative to positive = BUY signal. Cross positive to negative = SELL.
+    """
+    if len(candles) < period + 2:
+        return {'fisher': 0.0, 'signal': 0.0, 'prev_fisher': 0.0}
+    
+    highs = [float(c[1]) for c in candles]
+    lows = [float(c[2]) for c in candles]
+    mid_price = [(h + l) / 2 for h, l in zip(highs, lows)]
+    
+    length = len(mid_price)
+    fisher_vals = [0.0] * length
+    signal_vals = [0.0] * length
+    value1 = 0.0
+    
+    for i in range(period, length):
+        # Find highest high and lowest low in period
+        max_h = max(mid_price[i - period + 1:i + 1])
+        min_l = min(mid_price[i - period + 1:i + 1])
+        
+        if max_h - min_l == 0:
+            value0 = 0.0
+        else:
+            value0 = 0.33 * 2 * ((mid_price[i] - min_l) / (max_h - min_l) - 0.5) + 0.67 * value1
+        
+        # Clamp to avoid log explosion
+        value0 = max(-0.999, min(0.999, value0))
+        
+        # Fisher Transform formula
+        import math
+        fisher_vals[i] = 0.5 * math.log((1 + value0) / (1 - value0)) + 0.5 * fisher_vals[i-1]
+        signal_vals[i] = fisher_vals[i-1]
+        value1 = value0
+    
+    current_fisher = fisher_vals[-1]
+    current_signal = signal_vals[-1]
+    prev_fisher = fisher_vals[-2] if length >= 2 else 0.0
+    
+    return {'fisher': current_fisher, 'signal': current_signal, 'prev_fisher': prev_fisher}
+
+
+def calc_metrics():
+    """Calculate trade metrics from position history (Jesse-inspired).
+    
+    Reads .trade_history.json for closed trades and calculates:
+    - Win Rate, Profit Factor, Sharpe Ratio, Max Drawdown, Avg Win/Loss
+    
+    Returns: dict with all metrics
+    """
+    import os, json
+    
+    history_file = os.path.expanduser('~/workspace/neko-futures-trader/.trade_history.json')
+    if not os.path.exists(history_file):
+        return {
+            'total_trades': 0, 'wins': 0, 'losses': 0,
+            'win_rate': 0, 'profit_factor': 0, 'net_pnl': 0,
+            'avg_win': 0, 'avg_loss': 0, 'max_drawdown': 0,
+            'sharpe_ratio': 0, 'expectancy': 0,
+        }
+    
+    try:
+        with open(history_file, 'r') as f:
+            trades = json.load(f)
+    except:
+        return {'total_trades': 0, 'wins': 0, 'losses': 0, 'win_rate': 0,
+                'profit_factor': 0, 'net_pnl': 0, 'avg_win': 0, 'avg_loss': 0,
+                'max_drawdown': 0, 'sharpe_ratio': 0, 'expectancy': 0}
+    
+    if not trades:
+        return {'total_trades': 0, 'wins': 0, 'losses': 0, 'win_rate': 0,
+                'profit_factor': 0, 'net_pnl': 0, 'avg_win': 0, 'avg_loss': 0,
+                'max_drawdown': 0, 'sharpe_ratio': 0, 'expectancy': 0}
+    
+    pnls = [t.get('pnl', 0) for t in trades]
+    wins = [p for p in pnls if p > 0]
+    losses = [p for p in pnls if p <= 0]
+    
+    total = len(pnls)
+    num_wins = len(wins)
+    num_losses = len(losses)
+    win_rate = (num_wins / total * 100) if total > 0 else 0
+    
+    gross_profit = sum(wins) if wins else 0
+    gross_loss = abs(sum(losses)) if losses else 0
+    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (999 if gross_profit > 0 else 0)
+    
+    net_pnl = sum(pnls)
+    avg_win = (sum(wins) / len(wins)) if wins else 0
+    avg_loss = (sum(losses) / len(losses)) if losses else 0
+    
+    # Max Drawdown
+    cumulative = 0
+    peak = 0
+    max_dd = 0
+    for p in pnls:
+        cumulative += p
+        if cumulative > peak:
+            peak = cumulative
+        dd = peak - cumulative
+        if dd > max_dd:
+            max_dd = dd
+    
+    # Simple Sharpe (annualized, assuming daily trades)
+    if total > 1 and sum(p**2 for p in pnls) > 0:
+        mean_return = net_pnl / total
+        std_return = (sum((p - mean_return)**2 for p in pnls) / total) ** 0.5
+        sharpe = (mean_return / std_return * (365 ** 0.5)) if std_return > 0 else 0
+    else:
+        sharpe = 0
+    
+    # Expectancy (expected value per trade)
+    expectancy = (win_rate/100 * avg_win) - ((100-win_rate)/100 * abs(avg_loss))
+    
+    return {
+        'total_trades': total,
+        'wins': num_wins,
+        'losses': num_losses,
+        'win_rate': win_rate,
+        'profit_factor': profit_factor,
+        'net_pnl': net_pnl,
+        'avg_win': avg_win,
+        'avg_loss': avg_loss,
+        'max_drawdown': max_dd,
+        'sharpe_ratio': sharpe,
+        'expectancy': expectancy,
+    }
+
+
+def log_trade(symbol, side, entry_price, exit_price, quantity, pnl, exit_reason):
+    """Log a closed trade to .trade_history.json for metrics tracking."""
+    import os, json
+    from datetime import datetime
+    
+    history_file = os.path.expanduser('~/workspace/neko-futures-trader/.trade_history.json')
+    trades = []
+    if os.path.exists(history_file):
+        try:
+            with open(history_file, 'r') as f:
+                trades = json.load(f)
+        except:
+            trades = []
+    
+    trades.append({
+        'symbol': symbol,
+        'side': side,
+        'entry': entry_price,
+        'exit': exit_price,
+        'qty': quantity,
+        'pnl': pnl,
+        'pnl_pct': ((exit_price - entry_price) / entry_price * 100) if side == 'LONG' else ((entry_price - exit_price) / entry_price * 100),
+        'reason': exit_reason,
+        'closed_at': datetime.now().isoformat(),
+    })
+    
+    with open(history_file, 'w') as f:
+        json.dump(trades, f, indent=2)
+
+
 def get_order_book_imbalance(symbol, limit=20):
     """Get order book imbalance (bid vs ask volume ratio).
     
@@ -1144,6 +1342,12 @@ def analyze_symbol(symbol, stats):
     plus_di = adx_data['plus_di']
     minus_di = adx_data['minus_di']
     
+    # === JESSE-INSPIRED INDICATORS ===
+    chop_value = calc_choppiness(candles, period=14)
+    fisher_data = calc_fisher(candles, period=9)
+    fisher_val = fisher_data['fisher']
+    fisher_prev = fisher_data['prev_fisher']
+    
     # Taker Buy/Sell Volume Ratio - fetched after filters pass
     taker = {'ratio': 1.0, 'buy_vol': 0, 'sell_vol': 0, 'trend': 'neutral'}
     # RSI-based filter: reject bad entries
@@ -1262,6 +1466,10 @@ def analyze_symbol(symbol, stats):
         if adx_value > 25: long_score += 1
         # +DI > -DI: +1 (bullish directional strength)
         if plus_di > minus_di: long_score += 1
+        # Fisher Transform Bullish: +1 (fisher > 0 and rising)
+        if fisher_val > 0 and fisher_val > fisher_prev: long_score += 1
+        # Fisher Bullish Cross: +1 (crossing from negative to positive)
+        if fisher_val > 0 and fisher_prev < 0: long_score += 1
         
         runner_score = long_score
     
@@ -1306,6 +1514,10 @@ def analyze_symbol(symbol, stats):
         if adx_value > 25: short_score += 1
         # -DI > +DI: +1 (bearish directional strength)
         if minus_di > plus_di: short_score += 1
+        # Fisher Transform Bearish: +1 (fisher < 0 and falling)
+        if fisher_val < 0 and fisher_val < fisher_prev: short_score += 1
+        # Fisher Bearish Cross: +1 (crossing from positive to negative)
+        if fisher_val < 0 and fisher_prev > 0: short_score += 1
         
         runner_score = short_score
     
@@ -1372,6 +1584,11 @@ def analyze_symbol(symbol, stats):
         if current <= recent_low * 1.02:
             print(f"(near_low)", end=" ", flush=True)
             return None
+    
+    # Choppiness Filter: reject if market is too choppy/sideways (CHOP > 60)
+    if chop_value > 60:
+        print(f"(chop={chop_value:.0f}>60)", end=" ", flush=True)
+        return None
     
     # ADX Filter: reject if market is not trending (ADX < 20)
     if adx_value < 20:
@@ -1537,6 +1754,9 @@ def analyze_symbol(symbol, stats):
         'minus_di': minus_di,
         'taker_ratio': taker['ratio'],
         'taker_trend': taker['trend'],
+        'chop': chop_value,
+        'fisher': fisher_val,
+        'fisher_prev': fisher_prev,
     }
 
 def fetch_brave_news(query, count=2):
@@ -1685,7 +1905,7 @@ def format_signal(analysis, stats):
 • Volume 5x+: {'🔥 Yes' if s.get('vol_ratio', 0) > 5 else '❌ No'}
 • Breakout: {'✅ Yes' if s.get('breakout') else '❌ No'}
 • Filter: {'✅ PASSED' if filter_signal(s.get('symbol',''), s)[0] else '❌ REJECTED'}
-• Score: {s.get('runner_score', 0)}/17
+• Score: {s.get('runner_score', 0)}/19
 
 🆕 PHASE 1 INDICATORS:
 • Divergence: {s.get('divergence', 'NONE')}
@@ -1697,6 +1917,8 @@ def format_signal(analysis, stats):
 • +DI/-DI: {s.get('plus_di', 0):.1f} / {s.get('minus_di', 0):.1f}
 • StochRSI: %K={s.get('stoch_rsi_k', 50):.1f} %D={s.get('stoch_rsi_d', 50):.1f}
 • OB Ratio: {s.get('taker_ratio', 1.0):.2f} {'🟢 Bullish' if s.get('taker_ratio', 1.0) > 1.05 else '🔴 Bearish' if s.get('taker_ratio', 1.0) < 0.95 else '⚪ Neutral'} ({s.get('taker_trend', 'neutral')})
+• CHOP: {s.get('chop', 50):.1f} {'🔄 Choppy' if s.get('chop', 50) > 60 else '📈 Trending' if s.get('chop', 50) < 40 else '⚖️ Neutral'}
+• Fisher: {s.get('fisher', 0):.3f} {'🟢 Bullish' if s.get('fisher', 0) > 0 else '🔴 Bearish'} {'↑' if s.get('fisher', 0) > s.get('fisher_prev', 0) else '↓'}
 
 ⏱️ COOLDOWN: 2h after SL
 • Support: {s['support']:.6f}
@@ -1706,7 +1928,7 @@ def format_signal(analysis, stats):
 • 1H Momentum: {s.get('change_1h', 0):+.1f}%
 • Volume Spike: {s.get('vol_ratio', 1):.1f}x
 • Breakout: {'✅ Yes' if s.get('breakout') else '❌ No'}
-• Score: {s.get('runner_score', 0)}/17 🚀
+• Score: {s.get('runner_score', 0)}/19 🚀
 
 💡 INSIGHT: {s['direction']} | {s['structure']} | RSI: {s['rsi']:.1f}
 🎯 Entry: ${s['current']:.6f}

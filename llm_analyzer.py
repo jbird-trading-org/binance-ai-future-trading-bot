@@ -62,7 +62,7 @@ TECHNICAL DATA:
 - Trend: {analysis.get('trend', 'N/A')} | Structure: {analysis.get('structure', 'N/A')}
 - Breakout: {'Yes' if analysis.get('breakout') else 'No'}
 - Weekly Change: {analysis.get('weekly_change', 0):+.1f}%
-- Score: {score}/17
+- Score: {score}/19
 - SL: ${analysis.get('sl', 0):.6f} | TP: ${analysis.get('tp1', 0):.6f}
 - SL Method: {analysis.get('sl_method', 'PRICE')}
 
