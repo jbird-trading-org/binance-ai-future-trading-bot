@@ -1291,14 +1291,38 @@ def analyze_symbol(symbol, stats):
     
     # === DIRECTION FILTERS ===
     # EMA Filter - for LONG, price should be near or below 21EMA (not extended)
-    if direction == "LONG" and ema_position > 85:
+    if direction == "LONG" and ema_position > 70:
         # Price too extended above ATR bands, likely a chase
-        print(f"(ema_pos={ema_position:.0f}>85)", end=" ", flush=True)
+        print(f"(ema_pos={ema_position:.0f}>70)", end=" ", flush=True)
         return None
-    if direction == "SHORT" and ema_position < 15:
+    if direction == "SHORT" and ema_position < 30:
         # Price too extended below ATR bands for shorts
-        print(f"(ema_pos={ema_position:.0f}<=15)", end=" ", flush=True)
+        print(f"(ema_pos={ema_position:.0f}<30)", end=" ", flush=True)
         return None
+    
+    # RSI Overbought Filter: reject LONG if RSI > 65 (too late to enter)
+    if direction == "LONG" and rsi_14 > 65:
+        print(f"(rsi={rsi_14:.0f}>65)", end=" ", flush=True)
+        return None
+    
+    # RSI Oversold Filter: reject SHORT if RSI < 35 (too late to short)
+    if direction == "SHORT" and rsi_14 < 35:
+        print(f"(rsi={rsi_14:.0f}<35)", end=" ", flush=True)
+        return None
+    
+    # Near Recent High Filter: reject LONG if price within 2% of 20-candle high (chasing)
+    if direction == "LONG":
+        recent_high = max(highs[-20:]) if len(highs) >= 20 else max(highs)
+        if current >= recent_high * 0.98:
+            print(f"(near_high)", end=" ", flush=True)
+            return None
+    
+    # Near Recent Low Filter: reject SHORT if price within 2% of 20-candle low
+    if direction == "SHORT":
+        recent_low = min(lows[-20:]) if len(lows) >= 20 else min(lows)
+        if current <= recent_low * 1.02:
+            print(f"(near_low)", end=" ", flush=True)
+            return None
     
     # ADX Filter: reject if market is not trending (ADX < 20)
     if adx_value < 20:
