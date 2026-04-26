@@ -337,8 +337,12 @@ def close_position(symbol, side, quantity):
 
     return result
 
-def log_trade(symbol, side, entry, exit_price, qty, pnl, reason):
-    """Log closed trade to .trade_history.json for metrics tracking."""
+def log_trade(symbol, side, entry, exit_price, qty, pnl, reason, signal_data=None):
+    """Log closed trade to .trade_history.json for metrics tracking.
+    
+    If signal_data is provided (indicator scores at entry), include them in the log
+    for later correlation analysis between indicators and PNL outcomes.
+    """
     import json
     from datetime import datetime
     history_file = os.path.join(os.path.dirname(__file__), '.trade_history.json')
@@ -349,13 +353,35 @@ def log_trade(symbol, side, entry, exit_price, qty, pnl, reason):
                 trades = json.load(f)
         except:
             trades = []
-    trades.append({
+    trade_entry = {
         'symbol': symbol, 'side': side,
         'entry': entry, 'exit': exit_price, 'qty': qty,
         'pnl': pnl,
         'pnl_pct': ((exit_price - entry) / entry * 100) if side == 'LONG' else ((entry - exit_price) / entry * 100),
         'reason': reason, 'closed_at': datetime.now().isoformat(),
-    })
+    }
+    # Enrich with indicator scores at entry for correlation analysis
+    if signal_data:
+        trade_entry['signal'] = {
+            'score': signal_data.get('signal_score', 0),
+            'rsi': signal_data.get('signal_rsi', 50),
+            'adx': signal_data.get('signal_adx', 0),
+            'stoch_rsi_k': signal_data.get('signal_stoch_rsi_k', 50),
+            'fisher': signal_data.get('signal_fisher', 0),
+            'taker_ratio': signal_data.get('signal_taker_ratio', 1.0),
+            'chop': signal_data.get('signal_chop', 50),
+            'vol_ratio': signal_data.get('signal_vol_ratio', 1),
+            'ema_position': signal_data.get('signal_ema_position', 50),
+            'macd_histogram': signal_data.get('signal_macd_histogram', 0),
+            'squeeze': signal_data.get('signal_squeeze', 0),
+            'direction': signal_data.get('signal_direction', side),
+            'plus_di': signal_data.get('signal_plus_di', 0),
+            'minus_di': signal_data.get('signal_minus_di', 0),
+            'price_change': signal_data.get('signal_price_change', 0),
+            'weekly_change': signal_data.get('signal_weekly_change', 0),
+            'oi_change': signal_data.get('signal_oi_change', 0),
+        }
+    trades.append(trade_entry)
     with open(history_file, 'w') as f:
         json.dump(trades, f, indent=2)
     print(f"    📝 Trade logged: {symbol} {side} PNL={pnl:.2f} ({reason})")
@@ -636,7 +662,7 @@ def main():
                             'symbol': symbol, 'close_type': 'SL',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
-                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL')
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL', pos_data)
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -649,7 +675,7 @@ def main():
                             'symbol': symbol, 'close_type': 'SL',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
-                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL')
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL', pos_data)
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -663,7 +689,7 @@ def main():
                             'symbol': symbol, 'close_type': 'TP',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
-                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP')
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP', pos_data)
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -676,7 +702,7 @@ def main():
                             'symbol': symbol, 'close_type': 'TP',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
-                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP')
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP', pos_data)
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -732,7 +758,7 @@ def main():
                             'symbol': symbol, 'close_type': 'SL',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
-                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL')
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL', pos_data)
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -745,7 +771,7 @@ def main():
                             'symbol': symbol, 'close_type': 'SL',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
-                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL')
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'SL', pos_data)
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -759,7 +785,7 @@ def main():
                             'symbol': symbol, 'close_type': 'TP',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
-                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP')
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP', pos_data)
                         add_to_recently_closed(symbol)
                     continue
                 
@@ -772,7 +798,7 @@ def main():
                             'symbol': symbol, 'close_type': 'TP',
                             'entry': entry, 'exit': current, 'pnl': pnl
                         })
-                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP')
+                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP', pos_data)
                         add_to_recently_closed(symbol)
                     continue
                 

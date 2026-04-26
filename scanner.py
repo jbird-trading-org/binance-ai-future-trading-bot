@@ -2179,6 +2179,24 @@ def main():
                                 'limit_order_id': limit_order_id,
                                 'limit_status': 'PENDING',
                                 'limit_placed_at': int(time.time() * 1000),
+                                # === Indicator scores at entry (for trade correlation analysis) ===
+                                'signal_score': analysis.get('runner_score', 0),
+                                'signal_rsi': analysis.get('rsi', 50),
+                                'signal_adx': analysis.get('adx', 0),
+                                'signal_stoch_rsi_k': analysis.get('stoch_rsi_k', 50),
+                                'signal_fisher': analysis.get('fisher', 0),
+                                'signal_taker_ratio': analysis.get('taker_ratio', 1.0),
+                                'signal_chop': analysis.get('chop', 50),
+                                'signal_vol_ratio': analysis.get('vol_ratio', 1),
+                                'signal_ema_position': analysis.get('ema_position', 50),
+                                'signal_macd_histogram': analysis.get('macd_histogram', 0),
+                                'signal_squeeze': analysis.get('squeeze', 0),
+                                'signal_direction': analysis.get('direction', 'LONG'),
+                                'signal_plus_di': analysis.get('plus_di', 0),
+                                'signal_minus_di': analysis.get('minus_di', 0),
+                                'signal_price_change': analysis.get('price_change', 0),
+                                'signal_weekly_change': analysis.get('weekly_change', 0),
+                                'signal_oi_change': analysis.get('oi_change', 0),
                             }
                             with open(positions_file, 'w') as f:
                                 json.dump(positions_data, f)
