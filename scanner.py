@@ -1571,18 +1571,20 @@ def analyze_symbol(symbol, stats):
         print(f"(rsi={rsi_14:.0f}<35)", end=" ", flush=True)
         return None
     
-    # Near Recent High Filter: reject LONG if price within 2% of 20-candle high (chasing)
+    # Near Recent High Filter: reject LONG if price within 4% of 20-candle high (chasing)
     if direction == "LONG":
         recent_high = max(highs[-20:]) if len(highs) >= 20 else max(highs)
-        if current >= recent_high * 0.98:
-            print(f"(near_high)", end=" ", flush=True)
+        if current >= recent_high * 0.96:  # Changed from 0.98 (2%) to 0.96 (4%)
+            distance_pct = ((recent_high - current) / current) * 100
+            print(f"(near_high:{distance_pct:.1f}%)", end=" ", flush=True)
             return None
     
-    # Near Recent Low Filter: reject SHORT if price within 2% of 20-candle low
+    # Near Recent Low Filter: reject SHORT if price within 4% of 20-candle low
     if direction == "SHORT":
         recent_low = min(lows[-20:]) if len(lows) >= 20 else min(lows)
-        if current <= recent_low * 1.02:
-            print(f"(near_low)", end=" ", flush=True)
+        if current <= recent_low * 1.04:  # Changed from 1.02 (2%) to 1.04 (4%)
+            distance_pct = ((current - recent_low) / recent_low) * 100
+            print(f"(near_low:{distance_pct:.1f}%)", end=" ", flush=True)
             return None
     
     # Choppiness Filter: reject if market is too choppy/sideways (CHOP > 60)
