@@ -20,3 +20,8 @@ instant_scan
 .scanner_log
 .positions_sl_tp.json
 .learnings/
+
+# Runtime/generated files
+.positions_sl_tp.json
+.trade_history.json
+scripts/backtest_results.json
