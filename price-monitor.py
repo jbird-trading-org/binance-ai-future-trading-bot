@@ -294,11 +294,68 @@ def save_positions_sl_tp(data):
     except:
         pass
 
-def cancel_algo_orders(symbol):
-    """Cancel all open algo (conditional) orders for a symbol.
-    Uses DELETE /fapi/v1/algoOpenOrders (single call, cancels all algo orders for the symbol).
+def get_algo_open_orders(symbol=None):
+    """Get open algo orders via GET /fapi/v1/openAlgoOrders.
+    
+    Algo orders (STOP_MARKET, TAKE_PROFIT_MARKET placed via /fapi/v1/algoOrder)
+    are NOT returned by /fapi/v1/openOrders — they need this dedicated endpoint.
     """
     headers = {'X-MBX-APIKEY': API_KEY}
+    try:
+        ts = int(time.time() * 1000)
+        if symbol:
+            params = f'symbol={symbol}&timestamp={ts}'
+        else:
+            params = f'timestamp={ts}'
+        sig = get_sig(params)
+        r = requests.get(
+            f'https://fapi.binance.com/fapi/v1/openAlgoOrders?{params}&signature={sig}',
+            headers=headers, timeout=15
+        )
+        if r.status_code == 200:
+            return r.json()
+    except Exception as e:
+        print(f"  ⚠️ Get algo orders error: {e}")
+    return []
+
+def has_sl_tp_orders(symbol):
+    """Check if a position has both SL and TP orders (algo or regular)."""
+    # Check algo orders (placed via /fapi/v1/algoOrder)
+    algo_orders = get_algo_open_orders(symbol)
+    has_algo_sl = any('STOP' in o.get('orderType', '') for o in algo_orders)
+    has_algo_tp = any('TAKE_PROFIT' in o.get('orderType', '') for o in algo_orders)
+    
+    # Check regular orders (placed via /fapi/v1/order)
+    headers = {'X-MBX-APIKEY': API_KEY}
+    try:
+        ts = int(time.time() * 1000)
+        params = f'symbol={symbol}&timestamp={ts}'
+        sig = get_sig(params)
+        r = requests.get(
+            f'https://fapi.binance.com/fapi/v1/openOrders?{params}&signature={sig}',
+            headers=headers, timeout=10
+        )
+        if r.status_code == 200:
+            orders = r.json() if isinstance(r.json(), list) else []
+            has_reg_sl = any('STOP' in o.get('type', '') for o in orders)
+            has_reg_tp = any('TAKE_PROFIT' in o.get('type', '') for o in orders)
+        else:
+            has_reg_sl, has_reg_tp = False, False
+    except:
+        has_reg_sl, has_reg_tp = False, False
+    
+    return (has_algo_sl or has_reg_sl), (has_algo_tp or has_reg_tp)
+
+def cancel_algo_orders(symbol):
+    """Cancel all open algo AND regular SL/TP orders for a symbol.
+    
+    Some positions have algo orders (via /fapi/v1/algoOrder),
+    others have regular orders (via /fapi/v1/order). Cancel both.
+    """
+    headers = {'X-MBX-APIKEY': API_KEY}
+    cancelled = False
+    
+    # 1. Cancel algo orders via DELETE /fapi/v1/algoOpenOrders
     try:
         ts = int(time.time() * 1000)
         params = f'symbol={symbol}&timestamp={ts}'
@@ -308,14 +365,27 @@ def cancel_algo_orders(symbol):
             headers=headers, timeout=15
         )
         if r.status_code == 200:
-            print(f"  🧹 Cancelled algo orders for {symbol}")
-            return True
-        else:
-            print(f"  ⚠️ Cancel algo orders failed for {symbol}: {r.text[:100]}")
-            return False
+            cancelled = True
     except Exception as e:
         print(f"  ⚠️ Cancel algo orders error for {symbol}: {e}")
-        return False
+    
+    # 2. Cancel regular SL/TP orders via DELETE /fapi/v1/order
+    try:
+        ts2 = int(time.time() * 1000)
+        params2 = f'symbol={symbol}&timestamp={ts2}'
+        sig2 = get_sig(params2)
+        r2 = requests.delete(
+            f'https://fapi.binance.com/fapi/v1/allOpenOrders?{params2}&signature={sig2}',
+            headers=headers, timeout=15
+        )
+        if r2.status_code == 200:
+            cancelled = True
+    except Exception as e:
+        print(f"  ⚠️ Cancel regular orders error for {symbol}: {e}")
+    
+    if cancelled:
+        print(f"  🧹 Cancelled orders for {symbol}")
+    return cancelled
 
 def place_sl_tp_only(symbol, side, quantity, sl_price, tp_price):
     """Place SL and TP algo orders after a limit order is filled."""
