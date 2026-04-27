@@ -26,7 +26,7 @@ except ImportError:
     LLM_TEMPERATURE = 0.1
     LLM_FALLBACK1_ENABLED = True
     LLM_FALLBACK1_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
-    LLM_FALLBACK1_MODEL = "anthropic/claude-3.5-haiku"
+    LLM_FALLBACK1_MODEL = "nousresearch/hermes-4-70b"
     LLM_FALLBACK2_ENABLED = True
     LLM_FALLBACK2_BASE_URL = "https://api.minimaxi.chat/v1/chat/completions"
     LLM_FALLBACK2_MODEL = "MiniMax-M2.5"
@@ -93,42 +93,58 @@ Reply in JSON ONLY:
     return prompt
 
 
-def _do_api_call(url, api_key, model, payload, timeout):
-    """Make a single API call. Returns response dict or None."""
+def _do_api_call(url, api_key, model, payload, timeout, max_retries=2):
+    """Make a single API call with retry on rate limit (429). Returns response dict or None."""
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    try:
-        r = requests.post(url, headers=headers, json=payload, timeout=timeout)
-        if r.status_code == 200:
-            data = r.json()
-            content = data.get('choices', [{}])[0].get('message', {}).get('content')
-            if not content:
-                # Model used reasoning field instead of content (e.g. xiaomi/mimo)
-                reasoning = data.get('choices', [{}])[0].get('message', {}).get('reasoning', '')
-                if reasoning:
-                    # Try to extract JSON from reasoning
-                    content = reasoning
+    for attempt in range(max_retries + 1):
+        try:
+            r = requests.post(url, headers=headers, json=payload, timeout=timeout)
+            if r.status_code == 200:
+                data = r.json()
+                content = data.get('choices', [{}])[0].get('message', {}).get('content')
+                if not content:
+                    # Model used reasoning field instead of content (e.g. xiaomi/mimo)
+                    reasoning = data.get('choices', [{}])[0].get('message', {}).get('reasoning', '')
+                    if reasoning:
+                        # Try to extract JSON from reasoning
+                        content = reasoning
+                    else:
+                        return None
+                usage = data.get('usage', {})
+                # Strip MiniMax/other thinking tags
+                content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+                return {
+                    'content': content,
+                    'tokens_in': usage.get('prompt_tokens', 0),
+                    'tokens_out': usage.get('completion_tokens', 0),
+                }
+            elif r.status_code == 429:
+                # Rate limited — parse retry-after if available
+                retry_after = int(r.headers.get('Retry-After', 3 * (attempt + 1)))
+                if attempt < max_retries:
+                    print(f"  ⏳ Rate limited ({url.split('/')[2]}), retry in {retry_after}s... (attempt {attempt+1}/{max_retries})")
+                    time.sleep(retry_after)
+                    continue
                 else:
+                    print(f"  ⚠️ Rate limited ({url.split('/')[2]}), max retries exceeded")
                     return None
-            usage = data.get('usage', {})
-            # Strip MiniMax/other thinking tags
-            content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
-            return {
-                'content': content,
-                'tokens_in': usage.get('prompt_tokens', 0),
-                'tokens_out': usage.get('completion_tokens', 0),
-            }
-        else:
-            print(f"  ⚠️ LLM API error ({url.split('/')[2]}): {r.status_code} — {r.text[:100]}")
+            else:
+                print(f"  ⚠️ LLM API error ({url.split('/')[2]}): {r.status_code} — {r.text[:100]}")
+                return None
+        except requests.Timeout:
+            if attempt < max_retries:
+                print(f"  ⏳ LLM timeout ({url.split('/')[2]}), retrying... (attempt {attempt+1}/{max_retries})")
+                time.sleep(2 * (attempt + 1))
+                continue
+            print(f"  ⚠️ LLM timeout ({url.split('/')[2]})")
             return None
-    except requests.Timeout:
-        print(f"  ⚠️ LLM timeout ({url.split('/')[2]})")
-        return None
-    except Exception as e:
-        print(f"  ⚠️ LLM error ({url.split('/')[2]}): {e}")
-        return None
+        except Exception as e:
+            print(f"  ⚠️ LLM error ({url.split('/')[2]}): {e}")
+            return None
+    return None
 
 
 def call_llm(prompt, model=None, timeout=15):

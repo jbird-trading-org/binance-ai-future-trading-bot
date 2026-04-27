@@ -46,7 +46,7 @@ NOTIFY_ON_TRAILING_TP = False
 
 # ── SCANNER ──────────────────────────────────────────────────────────────────
 SCAN_INTERVAL = 300             # Scanner run every 5 minutes
-MIN_PRICE_CHANGE = 3.0          # Min % price change for signal
+MIN_PRICE_CHANGE = 2.0          # Min % price change for signal (lowered from 3.0 for choppy markets)
 SKIP_RECENT_HOURS = 24          # Skip re-entry for 24h after close
 
 # ── LLM ANALYZER (Hybrid AI Gate) ────────────────────────────────────────────
@@ -62,7 +62,7 @@ LLM_TIMEOUT = 15                # Seconds before timeout (fail-open)
 # ── LLM FALLBACK 1 (OpenRouter) ──────────────────────────────────────────────
 LLM_FALLBACK1_ENABLED = True
 LLM_FALLBACK1_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
-LLM_FALLBACK1_MODEL = "anthropic/claude-3.5-haiku"
+LLM_FALLBACK1_MODEL = "nousresearch/hermes-4-70b"
 
 # ── LLM FALLBACK 2 (MiniMax) ─────────────────────────────────────────────────
 LLM_FALLBACK2_ENABLED = True

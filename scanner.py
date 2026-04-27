@@ -478,27 +478,41 @@ def place_limit_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price, ent
     headers = {'X-MBX-APIKEY': API_KEY}
     ts = int(time.time() * 1000)
     
-    # Get tick size for proper price rounding
+    # Get tick size AND step size for proper rounding
     try:
         info_r = requests.get('https://fapi.binance.com/fapi/v1/exchangeInfo', timeout=10)
         tick_size = 0.00001
+        step_size = 0.001
         for s in info_r.json().get('symbols', []):
             if s['symbol'] == symbol:
                 for f in s.get('filters', []):
                     if f.get('filterType') == 'PRICE_FILTER':
                         tick_size = float(f.get('tickSize', 0.00001))
+                    elif f.get('filterType') == 'LOT_SIZE':
+                        step_size = float(f.get('stepSize', 0.001))
                 break
     except:
         tick_size = 0.00001
+        step_size = 0.001
     
     def round_to_tick(price, tick):
         tick_str = f"{tick:.10f}".rstrip('0')
         decimals = len(tick_str.split('.')[1]) if '.' in tick_str else 0
         return float(f"{price:.{decimals}f}")
     
+    def round_qty(qty, step):
+        """Round quantity to step_size precision — critical for batch orders"""
+        step_str = f"{step:.10f}".rstrip('0')
+        decimals = len(step_str.split('.')[1]) if '.' in step_str else 0
+        # Floor to step
+        steps = int(qty / step)
+        rounded = steps * step
+        return float(f"{rounded:.{decimals}f}")
+    
     entry_rounded = round_to_tick(entry_price, tick_size)
     sl_rounded = round_to_tick(sl_price, tick_size) if sl_price else None
     tp_rounded = round_to_tick(tp_price, tick_size) if tp_price else None
+    qty_rounded = round_qty(quantity, step_size)
     sl_side = "SELL" if side == "BUY" else "BUY"
     
     # Build batch orders array
@@ -510,7 +524,7 @@ def place_limit_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price, ent
         'side': side,
         'type': 'LIMIT',
         'timeInForce': 'GTC',
-        'quantity': quantity,
+        'quantity': str(qty_rounded),
         'price': str(entry_rounded),
     })
     
@@ -547,7 +561,7 @@ def place_limit_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price, ent
         
         order_id = entry_result.get('orderId')
         if order_id:
-            print(f"  📦 Batch placed: LIMIT={entry_rounded} SL={sl_rounded} TP={tp_rounded}")
+            print(f"  📦 Batch placed: LIMIT={entry_rounded} SL={sl_rounded} TP={tp_rounded} qty={qty_rounded}")
             return {
                 'orderId': order_id,
                 'limit_order_id': order_id,
@@ -1688,7 +1702,7 @@ def analyze_symbol(symbol, stats):
         return None
     
     # Must have significant change for signal (either direction)
-    if abs(price_change) < 3:
+    if abs(price_change) < MIN_PRICE_CHANGE:
         print(f"(ch={price_change:.1f}%)", end=" ", flush=True)
         return None
     
@@ -1707,9 +1721,10 @@ def analyze_symbol(symbol, stats):
     
     # === DIRECTION FILTERS ===
     # EMA Filter - for LONG, price should be near or below 21EMA (not extended)
-    if direction == "LONG" and ema_position > 60:
-        # Price too extended above ATR bands, likely a chase - tightened from 70
-        print(f"(ema_pos={ema_position:.0f}>60)", end=" ", flush=True)
+    # Exception: breakout patterns are allowed even if extended
+    if direction == "LONG" and ema_position > 75 and not breakout:
+        # Price too extended above ATR bands, likely a chase
+        print(f"(ema_pos={ema_position:.0f}>75)", end=" ", flush=True)
         return None
     if direction == "SHORT" and ema_position < 40:
         # Price too extended below ATR bands for shorts
