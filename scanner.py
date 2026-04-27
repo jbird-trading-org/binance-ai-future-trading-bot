@@ -66,7 +66,7 @@ except NameError:
 
 # Load delisting blocklist
 try:
-    from delisting_monitor import is_token_blocked, get_blocklist, check_binance_delist_announcements
+    from delisting_monitor import is_token_blocked, get_blocklist, check_binance_delist_announcements, get_delist_schedule
     DELISTING_CHECK = True
 except ImportError:
     DELISTING_CHECK = False
@@ -272,6 +272,35 @@ def get_klines(symbol, interval='1h', limit=100):
     r = requests.get(url, timeout=15)
     return r.json()
 
+def batch_orders(orders):
+    """Place multiple orders in a single API call (max 5 orders).
+    
+    POST /fapi/v1/batchOrders
+    Body: batchOrders=[{order1}, {order2}, ...] (JSON array as string)
+    
+    Each order dict needs: symbol, side, type, quantity, and type-specific params.
+    Returns: list of order results.
+    """
+    try:
+        ts = int(time.time() * 1000)
+        headers = {'X-MBX-APIKEY': API_KEY, 'Content-Type': 'application/json'}
+        
+        # Build batch params
+        import json as json_mod
+        batch_json = json_mod.dumps(orders)
+        params_str = f'batchOrders={batch_json}&timestamp={ts}'
+        sig = get_signature(params_str)
+        
+        url = f'https://fapi.binance.com/fapi/v1/batchOrders'
+        r = requests.post(url, 
+                         params={'batchOrders': batch_json, 'timestamp': ts, 'signature': sig},
+                         headers=headers, timeout=15)
+        return r.json()
+    except Exception as e:
+        print(f"  ⚠️ Batch order error: {e}")
+        return [{'error': str(e)}]
+
+
 def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
     """Place market order FIRST, only add SL/TP if market order succeeds"""
     ts = int(time.time() * 1000)
@@ -440,15 +469,16 @@ def place_order(symbol, side, quantity):
 
 
 def place_limit_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price, entry_price):
-    """Place LIMIT order. SL/TP placed after fill (monitored by price-monitor).
+    """Place LIMIT entry + SL + TP in a single batch API call.
     
-    Scanner places the limit order and moves on. Price-monitor checks
-    fill status and places SL/TP when filled. Cancels after 5min if unfilled.
+    Uses POST /fapi/v1/batchOrders to place all 3 orders atomically.
+    SL/TP are STOP_MARKET/TAKE_PROFIT_MARKET algo orders with reduceOnly.
+    Max latency reduction: 3 HTTP calls → 1.
     """
     headers = {'X-MBX-APIKEY': API_KEY}
     ts = int(time.time() * 1000)
     
-    # Round to tick size
+    # Get tick size for proper price rounding
     try:
         info_r = requests.get('https://fapi.binance.com/fapi/v1/exchangeInfo', timeout=10)
         tick_size = 0.00001
@@ -467,25 +497,74 @@ def place_limit_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price, ent
         return float(f"{price:.{decimals}f}")
     
     entry_rounded = round_to_tick(entry_price, tick_size)
+    sl_rounded = round_to_tick(sl_price, tick_size) if sl_price else None
+    tp_rounded = round_to_tick(tp_price, tick_size) if tp_price else None
+    sl_side = "SELL" if side == "BUY" else "BUY"
     
-    # Place LIMIT order (GTC)
-    params = "symbol={}&side={}&type=LIMIT&timeInForce=GTC&quantity={}&price={}&timestamp={}".format(
-        symbol, side, quantity, entry_rounded, ts)
-    sig = get_signature(params)
-    url = "https://fapi.binance.com/fapi/v1/order?{}&signature={}".format(params, sig)
-    r = requests.post(url, headers=headers, timeout=15)
-    result = r.json()
+    # Build batch orders array
+    orders = []
     
-    order_id = result.get('orderId')
-    if order_id:
-        print(f"  📋 Limit order placed: {entry_rounded} (ID: {order_id})")
-        result['limit_price'] = entry_rounded
-        result['limit_order_id'] = order_id
-        result['limit_placed_at'] = ts
+    # 1. LIMIT entry order
+    orders.append({
+        'symbol': symbol,
+        'side': side,
+        'type': 'LIMIT',
+        'timeInForce': 'GTC',
+        'quantity': quantity,
+        'price': str(entry_rounded),
+    })
+    
+    # 2. STOP_MARKET (SL) - algo order
+    if sl_rounded:
+        orders.append({
+            'symbol': symbol,
+            'side': sl_side,
+            'type': 'STOP_MARKET',
+            'stopPrice': str(sl_rounded),
+            'closePosition': 'true',
+            'workingType': 'CONTRACT_PRICE',
+        })
+    
+    # 3. TAKE_PROFIT_MARKET (TP) - algo order
+    if tp_rounded:
+        orders.append({
+            'symbol': symbol,
+            'side': sl_side,
+            'type': 'TAKE_PROFIT_MARKET',
+            'stopPrice': str(tp_rounded),
+            'closePosition': 'true',
+            'workingType': 'CONTRACT_PRICE',
+        })
+    
+    # Execute batch
+    result = batch_orders(orders)
+    
+    # Parse results
+    if isinstance(result, list) and len(result) > 0:
+        entry_result = result[0] if len(result) > 0 else {}
+        sl_result = result[1] if len(result) > 1 else {}
+        tp_result = result[2] if len(result) > 2 else {}
+        
+        order_id = entry_result.get('orderId')
+        if order_id:
+            print(f"  📦 Batch placed: LIMIT={entry_rounded} SL={sl_rounded} TP={tp_rounded}")
+            return {
+                'orderId': order_id,
+                'limit_order_id': order_id,
+                'limit_price': entry_rounded,
+                'limit_placed_at': ts,
+                'status': entry_result.get('status', 'NEW'),
+                'sl_order_id': sl_result.get('orderId'),
+                'tp_order_id': tp_result.get('orderId'),
+                'batch': True,
+            }
+        else:
+            # Entry failed - return error
+            print(f"  ⚠️ Batch entry failed: {entry_result}")
+            return entry_result
     else:
-        print(f"  ⚠️ Limit order failed: {result.get('msg', 'unknown')}")
-    
-    return result
+        print(f"  ⚠️ Batch order failed: {result}")
+        return {'error': 'batch_failed', 'details': result}
 
 def set_leverage(symbol, lev=LEVERAGE):
     ts = int(time.time() * 1000)
@@ -1061,6 +1140,44 @@ def get_taker_ratio(symbol, period='1h', limit=10):
         return {'ratio': 1.0, 'buy_vol': 0, 'sell_vol': 0, 'trend': 'neutral'}
 
 
+def get_top_trader_ratio(symbol, period='1h', limit=10):
+    """Get Top Trader Long/Short Ratio (positions) from Binance Futures.
+    
+    GET /futures/data/topLongShortPositionRatio
+    Shows how top traders (by position size) are positioned.
+    ratio > 1 = top traders net long, < 1 = net short.
+    
+    Returns:
+        dict: {'ratio': float, 'long_pct': float, 'short_pct': float, 'trend': str}
+    """
+    try:
+        base_sym = symbol.replace('USDT', '')
+        url = f'https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol={base_sym}&period={period}&limit={limit}'
+        r = requests.get(url, timeout=5)
+        data = r.json()
+        
+        if not data or len(data) == 0:
+            return {'ratio': 1.0, 'long_pct': 50, 'short_pct': 50, 'trend': 'neutral'}
+        
+        latest = data[-1]
+        long_pct = float(latest.get('longAccount', 0.5)) * 100
+        short_pct = float(latest.get('shortAccount', 0.5)) * 100
+        ratio = float(latest.get('longShortRatio', 1.0))
+        
+        # Trend: compare latest vs earlier data points
+        trend = 'neutral'
+        if len(data) >= 3:
+            prev_ratio = float(data[-3].get('longShortRatio', 1.0))
+            if ratio > prev_ratio * 1.05:
+                trend = 'increasing_long'  # More longs building
+            elif ratio < prev_ratio * 0.95:
+                trend = 'increasing_short'  # More shorts building
+        
+        return {'ratio': ratio, 'long_pct': long_pct, 'short_pct': short_pct, 'trend': trend}
+    except Exception as e:
+        return {'ratio': 1.0, 'long_pct': 50, 'short_pct': 50, 'trend': 'neutral'}
+
+
 def detect_divergence(prices, period=14):
     """Detect RSI/MACD divergence.
     
@@ -1595,9 +1712,11 @@ def analyze_symbol(symbol, stats):
         print(f"(ema_pos={ema_position:.0f}>60)", end=" ", flush=True)
         return None
     if direction == "SHORT" and ema_position < 40:
-        # Price too extended below ATR bands for shorts - tightened from 30
-        print(f"(ema_pos={ema_position:.0f}<40)", end=" ", flush=True)
-        return None
+        # Price too extended below ATR bands for shorts
+        # Exception: if price_change < -5%, strong momentum drop is valid
+        if price_change >= -5:
+            print(f"(ema_pos={ema_position:.0f}<40)", end=" ", flush=True)
+            return None
     
     # RSI Overbought Filter: reject LONG if RSI > 65 (too late to enter)
     if direction == "LONG" and rsi_14 > 65:
@@ -1617,10 +1736,12 @@ def analyze_symbol(symbol, stats):
             return None
     
     # Momentum Confirmation: require 2+ red candles before SHORT entry
+    # Exception: if price_change < -5%, sudden drop — 1 candle is enough
     if direction == "SHORT":
         red_count = sum(1 for i in range(-2, 0) if closes[i] < opens[i])
-        if red_count < 2:
-            print(f"(red={red_count}<2)", end=" ", flush=True)
+        min_red = 1 if price_change < -5 else 2
+        if red_count < min_red:
+            print(f"(red={red_count}<{min_red})", end=" ", flush=True)
             return None
     
     # Multi-timeframe: 4h trend alignment — reject if 4h trend opposes 1h direction
@@ -1659,6 +1780,9 @@ def analyze_symbol(symbol, stats):
     
     # Taker Buy/Sell Volume Ratio - fetch only after all other filters pass
     taker = get_taker_ratio(symbol, period='1h', limit=10)
+    
+    # Top Trader Long/Short Ratio - fetch alongside taker
+    top_trader = get_top_trader_ratio(symbol, period='1h', limit=10)
     
     # EMAs
     if not ema_21 or not ema_50:
@@ -1718,6 +1842,12 @@ def analyze_symbol(symbol, stats):
         runner_score += 1  # More buyers executing
     elif direction == "SHORT" and taker['ratio'] < 0.95:
         runner_score += 1  # More sellers executing
+    # Top Trader Long/Short Ratio bonus: +1 for alignment
+    # Top traders positioned same direction = confluence
+    if direction == "LONG" and top_trader['ratio'] > 1.1:
+        runner_score += 1  # Top traders net long
+    elif direction == "SHORT" and top_trader['ratio'] < 0.9:
+        runner_score += 1  # Top traders net short
     if direction == "SHORT" and rsi_oversold:
         # Don't SHORT when RSI oversold (<30) - too risky  
         return None
@@ -1816,6 +1946,11 @@ def analyze_symbol(symbol, stats):
         'minus_di': minus_di,
         'taker_ratio': taker['ratio'],
         'taker_trend': taker['trend'],
+        # Top Trader Long/Short Ratio
+        'top_trader_ratio': top_trader['ratio'],
+        'top_trader_long_pct': top_trader['long_pct'],
+        'top_trader_short_pct': top_trader['short_pct'],
+        'top_trader_trend': top_trader['trend'],
         'chop': chop_value,
         'fisher': fisher_val,
         'fisher_prev': fisher_prev,
@@ -1983,6 +2118,7 @@ def format_signal(analysis, stats):
 • +DI/-DI: {s.get('plus_di', 0):.1f} / {s.get('minus_di', 0):.1f}
 • StochRSI: %K={s.get('stoch_rsi_k', 50):.1f} %D={s.get('stoch_rsi_d', 50):.1f}
 • OB Ratio: {s.get('taker_ratio', 1.0):.2f} {'🟢 Bullish' if s.get('taker_ratio', 1.0) > 1.05 else '🔴 Bearish' if s.get('taker_ratio', 1.0) < 0.95 else '⚪ Neutral'} ({s.get('taker_trend', 'neutral')})
+• Top Traders: {s.get('top_trader_ratio', 1.0):.2f} L:{s.get('top_trader_long_pct', 50):.0f}% S:{s.get('top_trader_short_pct', 50):.0f}% {'🟢 Net Long' if s.get('top_trader_ratio', 1.0) > 1.1 else '🔴 Net Short' if s.get('top_trader_ratio', 1.0) < 0.9 else '⚪ Neutral'} ({s.get('top_trader_trend', 'neutral')})
 • CHOP: {s.get('chop', 50):.1f} {'🔄 Choppy' if s.get('chop', 50) > 60 else '📈 Trending' if s.get('chop', 50) < 40 else '⚖️ Neutral'}
 • Fisher: {s.get('fisher', 0):.3f} {'🟢 Bullish' if s.get('fisher', 0) > 0 else '🔴 Bearish'} {'↑' if s.get('fisher', 0) > s.get('fisher_prev', 0) else '↓'}
 
@@ -2060,6 +2196,19 @@ def main():
     if open_count >= MAX_POSITIONS:
         print("⚠️ Max positions reached - waiting...")
         return
+    
+    # Check official delist schedule and auto-block
+    if DELISTING_CHECK:
+        try:
+            upcoming = get_delist_schedule()
+            if upcoming:
+                print(f"  🚨 Delist schedule: {len(upcoming)} symbols flagged")
+                for sym in upcoming:
+                    if not is_token_blocked(sym):
+                        from delisting_monitor import manual_add
+                        manual_add(sym)
+        except Exception as e:
+            print(f"  ⚠️ Delist check error: {e}")
     
     # Get all tickers
     tickers = get_24h_tickers()
@@ -2235,11 +2384,14 @@ def main():
                                 conf = llm_result.get('confidence', 0)
                                 provider_tag = f" [{provider}]" if provider else ""
                                 msg += f"📊 Model: {model_name}{provider_tag} | Conf: {conf:.0%}\n"
-                        msg += f"\n✅ ORDER PLACED: {analysis['direction']} (LIMIT)\n"
+                        msg += f"\n✅ ORDER PLACED: {analysis['direction']} (BATCH)\n"
                         msg += f"🎯 Entry: ${entry_price:.6f} (pullback 1%)\n"
                         msg += f"🛡 SL: ${analysis['sl']:.6f}\n"
                         msg += f"📈 TP: ${analysis['tp1']:.6f}\n"
-                        msg += f"📋 Limit ID: {limit_order_id} | Status: NEW"
+                        msg += f"📋 Limit ID: {limit_order_id}"
+                        if result.get('batch'):
+                            msg += f" | SL ID: {result.get('sl_order_id', 'N/A')} | TP ID: {result.get('tp_order_id', 'N/A')}"
+                        msg += f" | Status: NEW"
                         
                         send_telegram(msg)
                         print(f"  Order: {order_id} | Posted to Telegram")
@@ -2278,6 +2430,8 @@ def main():
                                 'signal_price_change': analysis.get('price_change', 0),
                                 'signal_weekly_change': analysis.get('weekly_change', 0),
                                 'signal_oi_change': analysis.get('oi_change', 0),
+                                'signal_top_trader_ratio': analysis.get('top_trader_ratio', 1.0),
+                                'signal_top_trader_trend': analysis.get('top_trader_trend', 'neutral'),
                             }
                             with open(positions_file, 'w') as f:
                                 json.dump(positions_data, f)

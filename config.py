@@ -51,18 +51,23 @@ SKIP_RECENT_HOURS = 24          # Skip re-entry for 24h after close
 
 # ── LLM ANALYZER (Hybrid AI Gate) ────────────────────────────────────────────
 # Second opinion layer — LLM checks candidates before execution
+# Priority: Nous (primary) → OpenRouter (fallback 1) → MiniMax (fallback 2)
 LLM_ENABLED = True              # Toggle LLM analysis on/off
-LLM_MODEL = "anthropic/claude-3.5-haiku"  # Model via OpenRouter
+LLM_MODEL = "xiaomi/mimo-v2-pro"  # Primary: Nous hosted
 LLM_MIN_SCORE = 4               # Only analyze candidates with score >= this
 LLM_TEMPERATURE = 0.1           # Low = deterministic
-LLM_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"  # OpenRouter endpoint
+LLM_BASE_URL = "https://inference-api.nousresearch.com/v1/chat/completions"  # Nous endpoint
 LLM_TIMEOUT = 15                # Seconds before timeout (fail-open)
 
-# ── LLM FALLBACK (Nous Research) ────────────────────────────────────────────
-# Used when OpenRouter is down or returns errors
-LLM_FALLBACK_ENABLED = True
-LLM_FALLBACK_BASE_URL = "https://inference-api.nousresearch.com/v1/chat/completions"
-LLM_FALLBACK_MODEL = "xiaomi/mimo-v2-pro"  # Nous hosted — fast, cheap fallback
+# ── LLM FALLBACK 1 (OpenRouter) ──────────────────────────────────────────────
+LLM_FALLBACK1_ENABLED = True
+LLM_FALLBACK1_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
+LLM_FALLBACK1_MODEL = "anthropic/claude-3.5-haiku"
+
+# ── LLM FALLBACK 2 (MiniMax) ─────────────────────────────────────────────────
+LLM_FALLBACK2_ENABLED = True
+LLM_FALLBACK2_BASE_URL = "https://api.minimaxi.chat/v1/chat/completions"
+LLM_FALLBACK2_MODEL = "MiniMax-M2.5"
 
 # ── RISK ─────────────────────────────────────────────────────────────────────
 MAX_MARGIN_PERCENT = 40         # Max margin usage %

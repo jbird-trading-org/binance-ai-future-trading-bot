@@ -87,16 +87,24 @@ def extract_symbols_from_text(text: str) -> List[str]:
     return list(set(symbols))
 
 def check_binance_delist_announcements() -> Set[str]:
-    """Check Binance announcements for delisting"""
+    """Check for delisting — uses official /fapi/v1/delistSchedule endpoint first,
+    falls back to announcement scraping."""
     new_delisted = set()
     blocklist = load_blocklist()
     
+    # PRIMARY: Use official delist schedule API
+    schedule = get_delist_schedule()
+    for sym in schedule:
+        if sym not in blocklist:
+            new_delisted.add(sym)
+            print(f"⚠️ DELISTING (official): {sym}")
+    
+    # SECONDARY: Also check announcements for any extras
     announcements = get_binance_announcements()
     
     for ann in announcements:
         title = ann.get('title', '')
         content = ann.get('content', '')
-        article_id = ann.get('id', '')
         
         full_text = f"{title} {content}".lower()
         
@@ -104,9 +112,9 @@ def check_binance_delist_announcements() -> Set[str]:
             symbols = extract_symbols_from_text(title + ' ' + content)
             for sym in symbols:
                 sym_usdt = f"{sym}USDT"
-                if sym_usdt not in blocklist:
+                if sym_usdt not in blocklist and sym_usdt not in new_delisted:
                     new_delisted.add(sym_usdt)
-                    print(f"⚠️ DELISTING DETECTED: {sym_usdt}")
+                    print(f"⚠️ DELISTING (announcement): {sym_usdt}")
                     print(f"   Title: {title}")
     
     if new_delisted:
@@ -137,10 +145,59 @@ def notify_telegram_delisting(delisted: Set[str], announcements: List):
     except:
         pass
 
-def get_futures_delisted_symbols() -> Set[str]:
-    """Check Binance API for futures delisted symbols"""
+def get_delist_schedule() -> Set[str]:
+    """Get delist schedule from Binance Futures API.
+    
+    Primary: Check exchangeInfo for symbols in SETTLING/PENDING_TRADING status.
+    These are actively being delisted or about to be delisted.
+    Falls back to /fapi/v1/delistSchedule if available.
+    """
+    delisted = set()
+    
+    # Method 1: Check exchangeInfo for non-TRADING status symbols
     try:
-        # Check for perpetual contracts that are no longer trading
+        url = "https://fapi.binance.com/fapi/v1/exchangeInfo"
+        headers = {'X-MBX-APIKEY': API_KEY} if API_KEY else {}
+        r = requests.get(url, headers=headers, timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            for s in data.get('symbols', []):
+                status = s.get('status', 'TRADING')
+                symbol = s.get('symbol', '')
+                if status in ('SETTLING', 'PENDING_TRADING', 'CLOSE_ONLY') and symbol.endswith('USDT'):
+                    delisted.add(symbol)
+                    print(f"⚠️ DELIST SCHEDULE: {symbol} (status={status})")
+    except Exception as e:
+        print(f"Error checking exchangeInfo for delists: {e}")
+    
+    # Method 2: Try official delistSchedule endpoint (may not be available)
+    try:
+        url = "https://fapi.binance.com/fapi/v1/delistSchedule"
+        headers = {'X-MBX-APIKEY': API_KEY} if API_KEY else {}
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code == 200 and r.headers.get('content-type', '').startswith('application/json'):
+            data = r.json()
+            for item in data:
+                symbol = item.get('symbol', '')
+                delist_time = item.get('delistTime', 0)
+                if symbol and delist_time and delist_time > (time.time() * 1000 - 86400000):
+                    delisted.add(symbol)
+                    if delist_time > time.time() * 1000:
+                        print(f"⚠️ UPCOMING DELIST: {symbol} at {datetime.fromtimestamp(delist_time/1000).isoformat()}")
+    except:
+        pass  # Endpoint may not exist for all accounts
+    
+    return delisted
+
+def get_futures_delisted_symbols() -> Set[str]:
+    """Check Binance API for futures delisted symbols — now uses official delistSchedule"""
+    # Primary: use official delist schedule endpoint
+    schedule = get_delist_schedule()
+    if schedule:
+        return schedule
+    
+    # Fallback: check exchangeInfo for active symbols
+    try:
         url = "https://fapi.binance.com/fapi/v1/exchangeInfo"
         r = requests.get(url, timeout=15)
         if r.status_code == 200:

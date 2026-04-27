@@ -7,27 +7,34 @@ Uses OpenRouter API (default: openai/gpt-4o-mini)
 
 import os
 import json
+import re
 import time
 import requests
 
 # === CONFIG (override from config.py if available) ===
 try:
     from config import (LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, LLM_MIN_SCORE,
-                        LLM_TEMPERATURE, LLM_FALLBACK_ENABLED,
-                        LLM_FALLBACK_BASE_URL, LLM_FALLBACK_MODEL)
+                        LLM_TEMPERATURE, LLM_FALLBACK1_ENABLED,
+                        LLM_FALLBACK1_BASE_URL, LLM_FALLBACK1_MODEL,
+                        LLM_FALLBACK2_ENABLED,
+                        LLM_FALLBACK2_BASE_URL, LLM_FALLBACK2_MODEL)
 except ImportError:
     LLM_ENABLED = True
-    LLM_MODEL = "anthropic/claude-3.5-haiku"
-    LLM_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
-    LLM_MIN_SCORE = 4       # Only analyze candidates with score >= this
-    LLM_TEMPERATURE = 0.1   # Low temp = more deterministic
-    LLM_FALLBACK_ENABLED = True
-    LLM_FALLBACK_BASE_URL = "https://inference-api.nousresearch.com/v1/chat/completions"
-    LLM_FALLBACK_MODEL = "xiaomi/mimo-v2-pro"
+    LLM_MODEL = "xiaomi/mimo-v2-pro"
+    LLM_BASE_URL = "https://inference-api.nousresearch.com/v1/chat/completions"
+    LLM_MIN_SCORE = 4
+    LLM_TEMPERATURE = 0.1
+    LLM_FALLBACK1_ENABLED = True
+    LLM_FALLBACK1_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
+    LLM_FALLBACK1_MODEL = "anthropic/claude-3.5-haiku"
+    LLM_FALLBACK2_ENABLED = True
+    LLM_FALLBACK2_BASE_URL = "https://api.minimaxi.chat/v1/chat/completions"
+    LLM_FALLBACK2_MODEL = "MiniMax-M2.5"
 
 # Load API keys from env
-LLM_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-LLM_FALLBACK_API_KEY = os.environ.get("NOUS_API_KEY", "")
+LLM_API_KEY = os.environ.get("NOUS_API_KEY", "")
+LLM_FALLBACK1_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+LLM_FALLBACK2_API_KEY = os.environ.get("MINIMAX_API_KEY", "")
 
 # === CACHE ===
 _analysis_cache = {}
@@ -72,12 +79,13 @@ TECHNICAL DATA:
 - SL: ${analysis.get('sl', 0):.6f} | TP: ${analysis.get('tp1', 0):.6f}
 - SL Method: {analysis.get('sl_method', 'PRICE')}
 
-RULES:
+|RULES:
 1. Is this a good {direction} entry RIGHT NOW?
 2. Is momentum aligned? (1h and 24h should agree with direction)
-3. Is RSI in a safe zone for this direction?
+3. For LONG: RSI 30-60 ideal, >65 risky. For SHORT: RSI 40-70 is VALID (dropping from high), only reject if RSI < 30
 4. Is the SL reasonable (not too tight, not too wide)?
 5. Any red flags? (funding extreme, divergence, exhaustion)
+6. For SHORT: If price_change < -3%, momentum drop is real — approve if other indicators align
 
 Reply in JSON ONLY:
 {{"decision": "YES" or "NO", "confidence": 0.0-1.0, "reason": "one line reason"}}
@@ -95,10 +103,20 @@ def _do_api_call(url, api_key, model, payload, timeout):
         r = requests.post(url, headers=headers, json=payload, timeout=timeout)
         if r.status_code == 200:
             data = r.json()
-            content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
+            content = data.get('choices', [{}])[0].get('message', {}).get('content')
+            if not content:
+                # Model used reasoning field instead of content (e.g. xiaomi/mimo)
+                reasoning = data.get('choices', [{}])[0].get('message', {}).get('reasoning', '')
+                if reasoning:
+                    # Try to extract JSON from reasoning
+                    content = reasoning
+                else:
+                    return None
             usage = data.get('usage', {})
+            # Strip MiniMax/other thinking tags
+            content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
             return {
-                'content': content.strip(),
+                'content': content,
                 'tokens_in': usage.get('prompt_tokens', 0),
                 'tokens_out': usage.get('completion_tokens', 0),
             }
@@ -114,9 +132,8 @@ def _do_api_call(url, api_key, model, payload, timeout):
 
 
 def call_llm(prompt, model=None, timeout=15):
-    """Call LLM API with fallback. Primary: OpenRouter → Fallback: Nous Research."""
+    """Call LLM with 3-tier fallback: Nous → OpenRouter → MiniMax."""
 
-    # Build payload once (same for both providers)
     model = model or LLM_MODEL
     payload = {
         "model": model,
@@ -125,41 +142,59 @@ def call_llm(prompt, model=None, timeout=15):
                 "role": "system",
                 "content": (
                     "You are a crypto futures trading analyst. "
-                    "Be conservative — reject risky setups. "
-                    "Only approve entries with clear momentum alignment. "
+                    "For LONG entries: RSI 30-60 is ideal, >65 is risky. "
+                    "For SHORT entries: RSI 40-70 is NORMAL (coin dropping from high), "
+                    "do NOT reject SHORT just because RSI > 60 — that's where short setups happen. "
+                    "Only reject SHORT if RSI < 30 (oversold, too late). "
+                    "Be balanced — approve setups with clear momentum alignment. "
+                    "During market-wide drops (price_change < -3%), SHORT signals are VALID even with higher RSI. "
                     "Respond ONLY with valid JSON, no markdown."
                 )
             },
             {"role": "user", "content": prompt}
         ],
         "temperature": LLM_TEMPERATURE,
-        "max_tokens": 150,
+        "max_tokens": 300,
     }
 
-    # --- Try Primary (OpenRouter) ---
+    # ── Tier 1: Nous Research (Primary) ──────────────────────────────────
     if LLM_API_KEY:
-        print(f"  🧠 LLM → OpenRouter ({model})...")
+        print(f"  🧠 LLM → Nous ({model})...")
         result = _do_api_call(LLM_BASE_URL, LLM_API_KEY, model, payload, timeout)
-        if result:
-            result['provider'] = 'openrouter'
-            return result
-        print("  ⚠️ OpenRouter failed, trying fallback...")
-    else:
-        print("  ⚠️ No OpenRouter API key, skipping primary...")
-
-    # --- Try Fallback (Nous Research) ---
-    if LLM_FALLBACK_ENABLED and LLM_FALLBACK_API_KEY:
-        fallback_model = LLM_FALLBACK_MODEL
-        payload_fb = {**payload, "model": fallback_model}
-        print(f"  🧠 LLM → Nous Research ({fallback_model})...")
-        result = _do_api_call(LLM_FALLBACK_BASE_URL, LLM_FALLBACK_API_KEY,
-                              fallback_model, payload_fb, timeout)
         if result:
             result['provider'] = 'nous'
             return result
-        print("  ⚠️ Nous fallback also failed")
+        print("  ⚠️ Nous failed, trying OpenRouter...")
     else:
-        print("  ⚠️ Fallback disabled or no Nous API key")
+        print("  ⚠️ No Nous API key, skipping primary...")
+
+    # ── Tier 2: OpenRouter (Fallback 1) ──────────────────────────────────
+    if LLM_FALLBACK1_ENABLED and LLM_FALLBACK1_API_KEY:
+        fb1_model = LLM_FALLBACK1_MODEL
+        payload_fb1 = {**payload, "model": fb1_model}
+        print(f"  🧠 LLM → OpenRouter ({fb1_model})...")
+        result = _do_api_call(LLM_FALLBACK1_BASE_URL, LLM_FALLBACK1_API_KEY,
+                              fb1_model, payload_fb1, timeout)
+        if result:
+            result['provider'] = 'openrouter'
+            return result
+        print("  ⚠️ OpenRouter failed, trying MiniMax...")
+    else:
+        print("  ⚠️ OpenRouter disabled or no key, skipping...")
+
+    # ── Tier 3: MiniMax (Fallback 2) ─────────────────────────────────────
+    if LLM_FALLBACK2_ENABLED and LLM_FALLBACK2_API_KEY:
+        fb2_model = LLM_FALLBACK2_MODEL
+        payload_fb2 = {**payload, "model": fb2_model}
+        print(f"  🧠 LLM → MiniMax ({fb2_model})...")
+        result = _do_api_call(LLM_FALLBACK2_BASE_URL, LLM_FALLBACK2_API_KEY,
+                              fb2_model, payload_fb2, timeout)
+        if result:
+            result['provider'] = 'minimax'
+            return result
+        print("  ⚠️ MiniMax also failed")
+    else:
+        print("  ⚠️ MiniMax disabled or no key")
 
     return None
 

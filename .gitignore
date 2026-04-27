@@ -18,7 +18,9 @@ instant_scan
 .posted_signals
 .scanner_signals
 .scanner_log
+.delist_blocklist.json
 .positions_sl_tp.json
+.trade_history.json
 .learnings/
 
 # Runtime/generated files
