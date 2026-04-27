@@ -66,7 +66,11 @@ def get_binance_announcements() -> List[Dict]:
         r = requests.get(url, params=params, timeout=15)
         if r.status_code == 200:
             data = r.json()
-            return data.get('articles', []).get('articles', [])
+            articles = data.get('articles', [])
+            # API returns either {'articles': [...]} or {'articles': {'articles': [...]}}
+            if isinstance(articles, dict):
+                return articles.get('articles', [])
+            return articles if isinstance(articles, list) else []
     except Exception as e:
         print(f"Error fetching announcements: {e}")
     return []
@@ -223,13 +227,15 @@ def update_blocklist_from_api():
             active_symbols = {s['symbol'] for s in data.get('symbols', [])}
             
             # If a symbol in our blocklist is no longer active, keep it blocked
+            to_rename = []
             for sym in blocklist:
                 if sym not in active_symbols and 'DELISTED' not in sym:
-                    # Add DELISTED tag
-                    new_sym = sym.replace('USDT', '_DELISTED_USDT')
-                    blocklist.remove(sym)
-                    blocklist.add(new_sym)
-                    changed = True
+                    to_rename.append(sym)
+            for sym in to_rename:
+                new_sym = sym.replace('USDT', '_DELISTED_USDT')
+                blocklist.remove(sym)
+                blocklist.add(new_sym)
+                changed = True
     except Exception as e:
         print(f"Error updating from API: {e}")
     

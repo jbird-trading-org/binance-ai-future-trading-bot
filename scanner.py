@@ -130,7 +130,7 @@ SECTOR_MAP = {
     'layer1': ['SOLUSDT', 'ADAUSDT', 'AVAXUSDT', 'NEARUSDT', 'APTUSDT', 'SUIUSDT', 'OPUSDT', 'ATOMUSDT', 'DOTUSDT', 'TIAUSDT'],
     'defi': ['AAVEUSDT', 'UNIUSDT', 'LINKUSDT', 'CRVUSDT', 'SNXUSDT', 'COMPUSDT', 'MKRUSDT', 'SUSHIUSDT', 'DYDXUSDT', '1INCHUSDT'],
     'meme': ['DOGEUSDT', 'SHIBUSDT', 'PEPEUSDT', 'FLOKIUSDT', 'BONKUSDT', 'WIFUSDT'],
-    'ai': ['FETUSDT', 'AGIXUSDT', 'RNDR USDT', 'OCEUSDT', 'PHBUSDT'],
+    'ai': ['FETUSDT', 'AGIXUSDT', 'RNDRUSDT', 'OCEUSDT', 'PHBUSDT'],
     'storage': ['FILUSDT', 'ARUSDT', 'STORJUSDT'],
 }
 
@@ -744,10 +744,10 @@ def calc_atr(candles, period=14):
         return None
     trs = []
     for i in range(1, min(period + 1, len(candles))):
-        high = float(candles[-i][1])
-        low = float(candles[-i][2])
-        prev = float(candles[-i-1][3])
-        tr = max(high - low, abs(high - prev), abs(low - prev))
+        high = float(candles[-i][2])      # index 2 = high
+        low = float(candles[-i][3])       # index 3 = low
+        prev_close = float(candles[-i-1][4])  # index 4 = close
+        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
         trs.append(tr)
     return sum(trs) / len(trs) if trs else None
 
@@ -862,9 +862,9 @@ def calc_adx(candles, period=14):
     if len(candles) < period + 1:
         return {'adx': 20, 'plus_di': 25, 'minus_di': 25}
     
-    highs = [float(c[1]) for c in candles]
-    lows = [float(c[2]) for c in candles]
-    closes = [float(c[4]) for c in candles]
+    highs = [float(c[2]) for c in candles]    # index 2 = high
+    lows = [float(c[3]) for c in candles]     # index 3 = low
+    closes = [float(c[4]) for c in candles]   # index 4 = close
     
     # Calculate True Range, +DM, -DM for each candle
     tr_list = []
@@ -961,9 +961,9 @@ def calc_choppiness(candles, period=14):
     if len(candles) < period + 1:
         return 50.0
     
-    highs = [float(c[1]) for c in candles]
-    lows = [float(c[2]) for c in candles]
-    closes = [float(c[4]) for c in candles]
+    highs = [float(c[2]) for c in candles]    # index 2 = high
+    lows = [float(c[3]) for c in candles]     # index 3 = low
+    closes = [float(c[4]) for c in candles]   # index 4 = close
     
     # Calculate ATR sum over period
     atr_sum = 0.0
@@ -998,8 +998,8 @@ def calc_fisher(candles, period=9):
     if len(candles) < period + 2:
         return {'fisher': 0.0, 'signal': 0.0, 'prev_fisher': 0.0}
     
-    highs = [float(c[1]) for c in candles]
-    lows = [float(c[2]) for c in candles]
+    highs = [float(c[2]) for c in candles]    # index 2 = high
+    lows = [float(c[3]) for c in candles]     # index 3 = low
     mid_price = [(h + l) / 2 for h, l in zip(highs, lows)]
     
     length = len(mid_price)
