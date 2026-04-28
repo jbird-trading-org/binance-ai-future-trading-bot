@@ -86,6 +86,7 @@ TECHNICAL DATA:
 4. Is the SL reasonable (not too tight, not too wide)?
 5. Any red flags? (funding extreme, divergence, exhaustion)
 6. For SHORT: If price_change < -3%, momentum drop is real — approve if other indicators align
+7. ANTI-CHASING: If price_change > 3% (LONG) or < -3% (SHORT), the move is already extended — REJECT unless strong reversal setup
 
 Reply in JSON ONLY:
 {{"decision": "YES" or "NO", "confidence": 0.0-1.0, "reason": "one line reason"}}
@@ -164,6 +165,7 @@ def call_llm(prompt, model=None, timeout=15):
                     "Only reject SHORT if RSI < 30 (oversold, too late). "
                     "Be balanced — approve setups with clear momentum alignment. "
                     "During market-wide drops (price_change < -3%), SHORT signals are VALID even with higher RSI. "
+                    "CRITICAL: Reject if price has already moved >3% in the signal direction (chasing extended moves). "
                     "Respond ONLY with valid JSON, no markdown."
                 )
             },

@@ -1373,25 +1373,28 @@ def calc_williams_r(high, low, close, period=14):
 
 def calc_macd(prices, fast=12, slow=26, signal=9):
     """Calculate MACD histogram. Returns (macd, signal_line, histogram)"""
-    if len(prices) < slow:
+    if len(prices) < slow + signal:
         return None, None, None
     
-    # Calculate EMAs
-    def ema(prices, period):
+    # Calculate EMA helper
+    def ema_series(prices, period):
+        """Return full EMA series, not just last value"""
         k = 2 / (period + 1)
-        ema_val = prices[0]
+        result = [prices[0]]
         for price in prices[1:]:
-            ema_val = price * k + ema_val * (1 - k)
-        return ema_val
+            result.append(price * k + result[-1] * (1 - k))
+        return result
     
-    ema_fast = ema(prices, fast)
-    ema_slow = ema(prices, slow)
-    macd_line = ema_fast - ema_slow
+    # MACD line series (fast EMA - slow EMA for each candle)
+    ema_fast_series = ema_series(prices, fast)
+    ema_slow_series = ema_series(prices, slow)
+    macd_series = [f - s for f, s in zip(ema_fast_series, ema_slow_series)]
     
-    # Signal line (EMA of MACD)
-    macd_values = [macd_line]  # simplified - use current macd
-    signal_line = ema(macd_values, signal)
+    # Signal line = EMA of MACD series
+    signal_series = ema_series(macd_series, signal)
     
+    macd_line = macd_series[-1]
+    signal_line = signal_series[-1]
     histogram = macd_line - signal_line
     
     return macd_line, signal_line, histogram
@@ -1416,8 +1419,9 @@ def analyze_symbol(symbol, stats):
     
     # === RUNNER CRITERIA ===
     # 1. Volume Spike (5x+ average)
-    avg_vol = sum(volumes[-24:]) / 24 if len(volumes) >= 24 else sum(volumes) / len(volumes)
-    recent_vol = volumes[-1]
+    # Use volumes[-2] (previous completed candle), not [-1] (current incomplete candle)
+    avg_vol = sum(volumes[-25:-1]) / 24 if len(volumes) >= 25 else sum(volumes[:-1]) / (len(volumes) - 1)
+    recent_vol = volumes[-2] if len(volumes) >= 2 else volumes[-1]
     vol_ratio = recent_vol / avg_vol if avg_vol > 0 else 1
     
     # Get weekly data
@@ -1532,26 +1536,13 @@ def analyze_symbol(symbol, stats):
     rsi_overbought = rsi_14 > 70
     rsi_signal = rsi_oversold or rsi_overbought
     
-    # 11. MACD Histogram Cross
-    ema_12 = calc_ema(closes[-26:], 12) if len(closes) >= 26 else calc_ema(closes, 12)
-    ema_26 = calc_ema(closes[-26:], 26) if len(closes) >= 26 else calc_ema(closes, 26)
+    # 11. MACD Histogram Cross (use proper calc_macd)
+    macd_line, signal_line, histogram = calc_macd(closes, 12, 26, 9)
+    macd_hist_current = histogram if histogram else 0
     
-    macd_line = ema_12 - ema_26 if ema_12 and ema_26 else 0
-    
-    # Signal line = EMA of MACD
-    macd_hist_current = 0
-    macd_hist_prev = 0
-    if len(closes) >= 35:
-        # Calculate MACD for previous candle
-        ema_12_prev = calc_ema(closes[-27:-1], 12)
-        ema_26_prev = calc_ema(closes[-27:-1], 26)
-        macd_prev = ema_12_prev - ema_26_prev if ema_12_prev and ema_26_prev else 0
-        # Signal prev = EMA of MACD prev
-        signal_prev = calc_ema([macd_prev] * 9, 9) if macd_prev else 0
-        macd_hist_prev = macd_prev - signal_prev if signal_prev else 0
-        # Signal current
-        signal_current = calc_ema([macd_prev, macd_line], 9) if macd_prev else macd_line
-        macd_hist_current = macd_line - signal_current if signal_current else 0
+    # Previous candle MACD
+    macd_prev, signal_prev, hist_prev = calc_macd(closes[:-1], 12, 26, 9) if len(closes) > 35 else (None, None, None)
+    macd_hist_prev = hist_prev if hist_prev else 0
     
     macd_cross = (macd_hist_current > 0 and macd_hist_prev < 0) or (macd_hist_current < 0 and macd_hist_prev > 0)
     
