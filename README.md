@@ -114,7 +114,7 @@ Access at: `https://YOUR_IP:8443/neko-light.html`
 | Indicator | Score | Description |
 |-----------|-------|-------------|
 | Volume Spike | +2 | >3x average volume |
-| Price Change | +1 to +2 | >5% or >10% change |
+| Price Change | +2 | >3% price change (raised from 2% to filter noise) |
 | OI Change | +2 | >20% open interest change |
 | Weekly Change | +1 to +2 | >5% or >20% weekly change |
 | EMA Position | Filter | Price must be near/below 21EMA |
@@ -124,15 +124,22 @@ Access at: `https://YOUR_IP:8443/neko-light.html`
 | Filter | Condition | Action |
 |--------|-----------|--------|
 | RSI | LONG when RSI > 70 | Reject LONG |
+| RSI | LONG when RSI < 30 | Reject LONG (oversold) |
 | RSI | SHORT when RSI < 30 | Reject SHORT |
 | MACD Histogram | Contradicts direction | Reject signal |
 | Bollinger Squeeze | No squeeze + weak move | Reject (chop) |
 | EMA Extended | Price too extended | Reject (chase) |
+| Anti-Chase | Recent entry within 24h | Skip re-entry |
+
+### LLM Analyzer (Disabled)
+
+LLM gate was disabled — rejection rate 98.5% was blocking valid signals. Set `LLM_ENABLED = True` in config to re-enable.
 
 ### Removed (Poor Accuracy)
 
 - ❌ Breakout/Breakdown
 - ❌ Pocket Pivot
+- ❌ Batch orders (`batch_orders`, `place_order_with_sl_tp` removed — using MARKET + separate SL/TP)
 
 ---
 
@@ -161,10 +168,15 @@ Risk: $5 | Reward: $15 = 1:3 ratio ✅
 
 | Param | Default | Description |
 |-------|---------|-------------|
-| MAX_POSITIONS | 5 | Max open positions |
-| MAX_MARGIN | 30% | Max margin usage |
+| MAX_POSITIONS | 8 | Max open positions (NORMAL mode) |
+| MAX_POSITIONS_SLEEP | 4 | Max positions in SLEEP mode |
+| MAX_MARGIN_PERCENT | 40% | Max margin usage |
+| MAX_RISK_PERCENT | 1.5% | Max risk per trade |
 | LEVERAGE | 10x | Leverage |
-| MIN_SCORE | 3 | Signal threshold |
+| MIN_SCORE_NORMAL | 6 | Signal threshold (NORMAL mode) |
+| MIN_SCORE_SLEEP | 7 | Signal threshold (SLEEP mode) |
+| MIN_PRICE_CHANGE | 3.0% | Min price change for signal |
+| SCAN_INTERVAL | 300s | Scanner interval (5 min) |
 
 ---
 
@@ -208,6 +220,18 @@ systemctl status neko-scanner neko-monitor neko-dashboard
 journalctl -u neko-scanner -f
 journalctl -u neko-monitor -f
 ```
+
+---
+
+## 📝 Changelog
+
+### 2026-05-06
+- **BREAKING:** LLM analyzer disabled — was rejecting 98.5% of valid signals
+- RSI acceptance range widened for LONG: 30-65 (was 30-60)
+- `MIN_PRICE_CHANGE` raised from 2.0% to 3.0% (filter noise)
+- Removed unused functions: `batch_orders`, `place_order_with_sl_tp`
+- Switched to MARKET orders + separate SL/TP (no batch)
+- Untracked `.positions_sl_tp.json` from git
 
 ---
 
