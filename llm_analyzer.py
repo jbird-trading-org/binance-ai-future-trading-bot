@@ -82,7 +82,7 @@ TECHNICAL DATA:
 |RULES:
 1. Is this a good {direction} entry RIGHT NOW?
 2. Is momentum aligned? (1h and 24h should agree with direction)
-3. For LONG: RSI 30-60 ideal, >65 risky. For SHORT: RSI 40-70 is VALID (dropping from high), only reject if RSI < 30
+3. For LONG: RSI 30-65 is ACCEPTABLE (40-60 optimal, 30-40 and 60-65 valid). For SHORT: RSI 40-70 is VALID (dropping from high), only reject if RSI < 30
 4. Is the SL reasonable (not too tight, not too wide)?
 5. Any red flags? (funding extreme, divergence, exhaustion)
 6. For SHORT: If price_change < -3%, momentum drop is real — approve if other indicators align
@@ -159,7 +159,8 @@ def call_llm(prompt, model=None, timeout=15):
                 "role": "system",
                 "content": (
                     "You are a crypto futures trading analyst. "
-                    "For LONG entries: RSI 30-60 is ideal, >65 is risky. "
+                    "For LONG entries: RSI 30-65 is ACCEPTABLE (not suboptimal), >70 is risky. "
+                    "RSI 40-60 is optimal for LONG, RSI 30-40 and 60-65 are still valid. "
                     "For SHORT entries: RSI 40-70 is NORMAL (coin dropping from high), "
                     "do NOT reject SHORT just because RSI > 60 — that's where short setups happen. "
                     "Only reject SHORT if RSI < 30 (oversold, too late). "

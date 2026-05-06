@@ -14,7 +14,7 @@ ENTRY_PERCENT_SLEEP = 5          # Entry % in SLEEP mode
 MIN_SCORE_SLEEP = 7             # Min score to enter in SLEEP mode
 
 # ── NORMAL MODE ──────────────────────────────────────────────────────────────
-MIN_SCORE_NORMAL = 6             # Min score to enter in NORMAL mode (balanced with new filters)
+MIN_SCORE_NORMAL = 6             # Min score to enter in NORMAL mode (lowered from 7 — too strict, 22 candidates stuck at 6/7)
 
 # ── SL/TP STRATEGY ────────────────────────────────────────────────────────────
 # Percentage-based: PRICE_SL / PRICE_TP
@@ -46,13 +46,13 @@ NOTIFY_ON_TRAILING_TP = False
 
 # ── SCANNER ──────────────────────────────────────────────────────────────────
 SCAN_INTERVAL = 300             # Scanner run every 5 minutes
-MIN_PRICE_CHANGE = 2.0          # Min % price change for signal (lowered from 3.0 for choppy markets)
+MIN_PRICE_CHANGE = 3.0          # Min % price change for signal (raised from 2.0 — filter noise better)
 SKIP_RECENT_HOURS = 24          # Skip re-entry for 24h after close
 
 # ── LLM ANALYZER (Hybrid AI Gate) ────────────────────────────────────────────
 # Second opinion layer — LLM checks candidates before execution
 # Priority: Nous (primary) → OpenRouter (fallback 1) → MiniMax (fallback 2)
-LLM_ENABLED = True              # Toggle LLM analysis on/off
+LLM_ENABLED = False              # Toggle LLM analysis on/off — disabled, LLM rejecting 98.5% of signals
 LLM_MODEL = "xiaomi/mimo-v2-pro"  # Primary: Nous hosted
 LLM_MIN_SCORE = 4               # Only analyze candidates with score >= this
 LLM_TEMPERATURE = 0.1           # Low = deterministic

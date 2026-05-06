@@ -189,34 +189,6 @@ def get_open_interest(symbol):
     except:
         return 0
 
-def get_oi_change(symbol, limit=5):
-    """Get OI change over recent candles - returns percentage change"""
-    try:
-        url = f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval=1h&limit={limit+1}'
-        r = requests.get(url, timeout=10)
-        candles = r.json()
-        
-        # Get OI for each hour
-        oi_values = []
-        for i in range(1, len(candles)):
-            # Use volume as proxy for OI (not exact but related)
-            vol = float(candles[i][5])  # volume
-            oi_values.append(vol)
-        
-        if len(oi_values) < 2:
-            return 0
-        
-        # Calculate change
-        current = oi_values[-1]
-        previous = sum(oi_values[:-1]) / len(oi_values[:-1])
-        
-        if previous == 0:
-            return 0
-        
-        return ((current - previous) / previous) * 100
-    except:
-        return 0
-
 def get_oi_history(symbol, period='1h', limit=24):
     """Get OI history - more accurate than volume proxy"""
     try:
@@ -272,148 +244,6 @@ def get_klines(symbol, interval='1h', limit=100):
     url = f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}'
     r = requests.get(url, timeout=15)
     return r.json()
-
-def batch_orders(orders, retry=True):
-    """Place multiple orders in a single API call (max 5 orders).
-    
-    POST /fapi/v1/batchOrders
-    Body (x-www-form-urlencoded): batchOrders=<json>&timestamp=<ts>&signature=<sig>
-    Retries once on signature error with fresh timestamp.
-    """
-    try:
-        import urllib.parse
-        ts = int(time.time() * 1000)
-        headers = {'X-MBX-APIKEY': API_KEY, 'Content-Type': 'application/x-www-form-urlencoded'}
-        
-        # Build batch JSON — compact for consistent signature
-        import json as json_mod
-        batch_json = json_mod.dumps(orders, separators=(',', ':'))
-        
-        # URL-encode the batch JSON for the body
-        encoded_batch = urllib.parse.quote(batch_json, safe='')
-        
-        # Build body and sign the EXACT body string
-        body = f'batchOrders={encoded_batch}&timestamp={ts}'
-        sig = get_signature(body)
-        body_with_sig = f'{body}&signature={sig}'
-        
-        r = requests.post('https://fapi.binance.com/fapi/v1/batchOrders',
-                         data=body_with_sig,
-                         headers=headers, timeout=15)
-        result = r.json()
-        
-        # Retry once on signature error (timestamp race condition)
-        if isinstance(result, dict) and result.get('code') == -1022 and retry:
-            print(f"  ⚠️ Batch sig error, retrying with fresh timestamp...")
-            time.sleep(0.1)
-            return batch_orders(orders, retry=False)
-        
-        return result
-    except Exception as e:
-        print(f"  ⚠️ Batch order error: {e}")
-        return [{'error': str(e)}]
-
-
-def place_order_with_sl_tp(symbol, side, quantity, sl_price, tp_price):
-    """Place market order FIRST, only add SL/TP if market order succeeds"""
-    ts = int(time.time() * 1000)
-    
-    # First place the market order
-    params = "symbol={}&side={}&type=MARKET&quantity={}&timestamp={}".format(symbol, side, quantity, ts)
-    sig = get_signature(params)
-    url = "https://fapi.binance.com/fapi/v1/order?{}&signature={}".format(params, sig)
-    headers = {'X-MBX-APIKEY': API_KEY}
-    r = requests.post(url, headers=headers, timeout=15)
-    result = r.json()
-    
-    # Only place SL/TP if market order succeeded
-    order_id = result.get('orderId')
-    if not order_id or str(order_id) == 'N/A':
-        return result  # Return early - market order failed, no SL/TP
-    
-    # OCO Orders - place both SL and TP simultaneously
-    if sl_price and tp_price:
-        # Get current price
-        r = requests.get(f'https://fapi.binance.com/fapi/v1/ticker/price?symbol={symbol}', timeout=10)
-        current_price = float(r.json()['price'])
-        
-        # Calculate working prices (trigger prices)
-        if side == "BUY":  # LONG
-            # SL triggers when price falls
-            sl_trigger = sl_price
-            sl_working = sl_price * 0.99
-            # TP triggers when price rises  
-            tp_trigger = tp_price
-            tp_working = tp_price * 1.01
-        else:  # SHORT
-            sl_trigger = sl_price
-            sl_working = sl_price * 1.01
-            tp_trigger = tp_price
-            tp_working = tp_price * 0.99
-        
-        # Place STOP Loss order using Algo API (Binance requires algoOrder endpoint)
-        # Get tickSize for proper price rounding
-        try:
-            info_r = requests.get('https://fapi.binance.com/fapi/v1/exchangeInfo', timeout=10)
-            tick_size = 0.00001  # default
-            for s in info_r.json().get('symbols', []):
-                if s['symbol'] == symbol:
-                    for f in s.get('filters', []):
-                        if f.get('filterType') == 'PRICE_FILTER':
-                            tick_size = float(f.get('tickSize', 0.00001))
-                    break
-        except:
-            tick_size = 0.00001
-        
-        # Round to tickSize - use string formatting to avoid float precision issues
-        def round_to_tick(price, tick):
-            # Calculate number of decimals from tickSize
-            tick_str = f"{tick:.10f}".rstrip('0')
-            decimals = len(tick_str.split('.')[1]) if '.' in tick_str else 0
-            # Round price to that many decimals
-            return float(f"{price:.{decimals}f}")
-        
-        sl_trigger_rounded = round_to_tick(sl_trigger, tick_size)
-        tp_trigger_rounded = round_to_tick(tp_trigger, tick_size)
-        
-        sl_side = "SELL" if side == "BUY" else "BUY"
-        sl_params = "symbol={}&side={}&type=STOP_MARKET&orderType=STOP_MARKET&algoType=CONDITIONAL&quantity={}&reduceOnly=true&triggerPrice={}&stopPrice={}&workingType=CONTRACT_PRICE&timestamp={}".format(
-            symbol, sl_side, quantity, sl_trigger_rounded, sl_trigger_rounded, int(time.time() * 1000))
-        sl_sig = get_signature(sl_params)
-        sl_url = "https://fapi.binance.com/fapi/v1/algoOrder?{}&signature={}".format(sl_params, sl_sig)
-        sl_r = requests.post(sl_url, headers=headers, timeout=10)
-        if sl_r.status_code != 200:
-            sl_data = sl_r.json()
-            if 'Invalid symbol status' in sl_r.text:
-                print(f"  ⚠️ SL order failed: Symbol {symbol} cannot be traded (Invalid status)")
-            else:
-                print(f"  ⚠️ SL order failed: {sl_r.text[:100]}")
-        
-        # Place TAKE PROFIT order using Algo API
-        tp_side = "SELL" if side == "BUY" else "BUY"
-        tp_params = "symbol={}&side={}&type=TAKE_PROFIT_MARKET&orderType=TAKE_PROFIT_MARKET&algoType=CONDITIONAL&quantity={}&reduceOnly=true&triggerPrice={}&stopPrice={}&workingType=CONTRACT_PRICE&timestamp={}".format(
-            symbol, tp_side, quantity, tp_trigger_rounded, tp_trigger_rounded, int(time.time() * 1000))
-        tp_sig = get_signature(tp_params)
-        tp_url = "https://fapi.binance.com/fapi/v1/algoOrder?{}&signature={}".format(tp_params, tp_sig)
-        tp_r = requests.post(tp_url, headers=headers, timeout=10)
-        if tp_r.status_code != 200:
-            print(f"  ⚠️ TP order failed: {tp_r.text[:100]}")
-    
-    return result
-
-def get_algo_orders_sapi():
-    """Query algo orders using SAPI endpoint (works when fapi fails)"""
-    try:
-        ts = int(time.time() * 1000)
-        params = f"timestamp={ts}"
-        sig = get_signature(params)
-        url = f"https://api.binance.com/sapi/v1/algo/futures/openOrders?{params}&signature={sig}"
-        r = requests.get(url, headers={'X-MBX-APIKEY': API_KEY}, timeout=10)
-        if r.status_code == 200:
-            return r.json().get('orders', [])
-    except:
-        pass
-    return []
 
 def cleanup_orphan_orders():
     """Cancel SL/TP algo orders for closed positions.
@@ -1499,18 +1329,6 @@ def analyze_symbol(symbol, stats):
     # === NEW INDICATORS v1.0.29 ===
     
     # 10. RSI (14) - Oversold/Oversold
-    def calc_rsi(closes, period=14):
-        if len(closes) < period + 1:
-            return 50
-        deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
-        gains = [d if d > 0 else 0 for d in deltas[-period:]]
-        losses = [-d if d < 0 else 0 for d in deltas[-period:]]
-        avg_gain = sum(gains) / period if gains else 0
-        avg_loss = sum(losses) / period if losses else 0
-        if avg_loss == 0:
-            return 100
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
     
     rsi_14 = calc_rsi(closes, 14)
     
@@ -1587,11 +1405,23 @@ def analyze_symbol(symbol, stats):
     # MACD values
     macd_line, signal_line, histogram = calc_macd(closes)
     
-    # Determine direction from price_change
+    # Determine direction from price_change + RSI context
+    # Prevent SHORT when RSI already low (near bottom = risky short)
+    # Prevent LONG when RSI already high (near top = risky long)
     if price_change > 0:
         direction = "LONG"
     else:
         direction = "SHORT"
+    
+    # RSI context guard: reject SHORT if RSI < 35 (already oversold, bounce likely)
+    # This prevents chasing a dump too late (TIA problem: SHORT at RSI 37.8)
+    if direction == "SHORT" and rsi_14 < 35:
+        print(f"(rsi_short_low={rsi_14:.0f}<35)", end=" ", flush=True)
+        return None
+    
+    # RSI context guard: reject LONG if RSI > 65 (already overbought)
+    # NOTE: This is redundant with the later RSI > 65 filter, but kept here for early exit
+    # The later filter (line ~1553) will catch it anyway
     
     # === LONG SCORING ===
     long_score = 0
@@ -1725,15 +1555,15 @@ def analyze_symbol(symbol, stats):
     # === DIRECTION FILTERS ===
     # EMA Filter - for LONG, reject if price is WAY over-extended above ATR bands
     # Exception: breakout patterns and strong momentum (>10%) allowed even if extended
-    if direction == "LONG" and ema_position > 80 and not breakout and price_change < 10:
+    if direction == "LONG" and ema_position > 80 and not breakout and price_change < 5:
         print(f"(ema_pos={ema_position:.0f}>80)", end=" ", flush=True)
         return None
     # SHORT: no ema_pos filter — in downtrends, negative ema_pos is normal
     # The scoring system and other filters already validate quality
     
-    # RSI Overbought Filter: reject LONG if RSI > 65 (too late to enter)
-    if direction == "LONG" and rsi_14 > 65:
-        print(f"(rsi={rsi_14:.0f}>65)", end=" ", flush=True)
+    # RSI Overbought Filter: reject LONG if RSI > 70 (too late to enter)
+    if direction == "LONG" and rsi_14 > 70:
+        print(f"(rsi={rsi_14:.0f}>70)", end=" ", flush=True)
         return None
     
     # RSI Oversold Filter: reject SHORT if RSI < 20 (extreme oversold, bounce risk)
@@ -1755,7 +1585,7 @@ def analyze_symbol(symbol, stats):
     # Exception: if price_change < -5%, sudden drop — 1 candle is enough
     if direction == "SHORT":
         red_count = sum(1 for i in range(-2, 0) if closes[i] < opens[i])
-        min_red = 1 if price_change < -5 else 2
+        min_red = 1 if price_change < -3 else 2
         if red_count < min_red:
             print(f"(red={red_count}<{min_red})", end=" ", flush=True)
             return None
@@ -1768,18 +1598,20 @@ def analyze_symbol(symbol, stats):
         print(f"(4h={h4_trend})", end=" ", flush=True)
         return None
     
-    # Near Recent High Filter: reject LONG if price within 4% of 20-candle high (chasing)
+    # Near Recent High Filter: reject LONG if price within 5% of 20-candle high (chasing)
+    # Exception: if price_change > 5%, it's a breakout not a chase
     if direction == "LONG":
         recent_high = max(highs[-20:]) if len(highs) >= 20 else max(highs)
-        if current >= recent_high * 0.96:  # Changed from 0.98 (2%) to 0.96 (4%)
+        if current >= recent_high * 0.95 and price_change < 5:  # Tightened from 4% to 5% — avoid buying near resistance
             distance_pct = ((recent_high - current) / current) * 100
             print(f"(near_high:{distance_pct:.1f}%)", end=" ", flush=True)
             return None
     
-    # Near Recent Low Filter: reject SHORT if price within 4% of 20-candle low
+    # Near Recent Low Filter: reject SHORT if price within 5% of 20-candle low (chasing bottom)
+    # Exception: if price_change < -5%, it's a breakdown not a chase
     if direction == "SHORT":
         recent_low = min(lows[-20:]) if len(lows) >= 20 else min(lows)
-        if current <= recent_low * 1.04:  # Changed from 1.02 (2%) to 1.04 (4%)
+        if current <= recent_low * 1.05 and price_change > -5:  # Tightened from 4% to 5% — avoid shorting near support
             distance_pct = ((current - recent_low) / recent_low) * 100
             print(f"(near_low:{distance_pct:.1f}%)", end=" ", flush=True)
             return None
@@ -1821,11 +1653,6 @@ def analyze_symbol(symbol, stats):
             # MACD bullish - reject SHORT
             print(f"(hist={histogram:.4f}>0)", end=" ", flush=True)
             return None
-    
-    # SHORT Filter: RSI > 30 (no short oversold)
-    if direction == "SHORT" and rsi_14 <= 30:
-        print(f"(rsi={rsi_14:.0f}<=30)", end=" ", flush=True)
-        return None
     
     # SHORT Filter: EMA position > 15 (no chase down)
     if direction == "SHORT" and ema_position <= 15:
@@ -2165,7 +1992,12 @@ def main():
     print(f"🔍 Scanner v8 Starting...")
     
     # Clean up orphan SL/TP orders for closed positions
-    cleanup_orphan_orders()
+    try:
+        cleanup_orphan_orders()
+    except NameError:
+        print("  ⚠️ cleanup_orphan_orders not available (module load issue)")
+    except Exception as e:
+        print(f"  ⚠️ Orphan cleanup error: {e}")
     
     balance = get_balance()
     positions = get_positions()
@@ -2360,7 +2192,6 @@ def main():
                 if notional < min_notional:
                     print(f"  Skipped: notional ${notional:.2f} < ${min_notional}")
                     return {"error": "notional_too_low"}
-                    return None
                 
                 set_leverage(symbol, LEVERAGE)
                 
