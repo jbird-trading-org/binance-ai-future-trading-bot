@@ -88,6 +88,24 @@ def extract_symbols_from_text(text: str) -> List[str]:
     import re
     # Match common patterns like BTCUSDT, ETHUSDT, etc.
     symbols = re.findall(r'([A-Z]{2,20})(?:USDT|USDC|PERPETUAL|FUTURES)', text)
+    
+    # Whitelist: never block known TradFi symbols from announcements
+    # These are stocks/commodities/indices that are actively trading
+    TRADIFI_WHITELIST = {
+        'TSLA','NVDA','AAPL','AMZN','GOOGL','META','MSFT','AMD','COIN','MSTR',
+        'HOOD','CRCL','PLTR','BABA','INTC','TSM','AVGO','QCOM','MU','BILL',
+        'SNDK','EWY','EWJ','USAR','PAYP','BB','BA','NFLX','DIS','PYPL','SQ',
+        'UBER','ABNB','SHOP','RIVN','SOFI','ARM','SMCI','MRVL','LRCX','KLAC',
+        'SNAP','PINS','RBLX','NET','DDOG','SNOW','PANW','CRWD','TEAM','NOW',
+        'WDAY','TTD','MELI','SE','GRAB','CPNG','LI','NIO','XPEV','LCID',
+        'GME','AMC','NKLA','DJT','ROKU','TTWO','EA','SONY','WMT','JPM',
+        'GS','V','MA','BAC','F','GM','RACE','HON','CAT','DE','UNH','JNJ',
+        'PFE','MRK','ABBV','LLY','COST','HD','NKE','SBUX','MCD','PEP','KO',
+        'XAU','XAG','XPT','XPD','CL','NATGAS','COPPER','BZ',
+        'QQQ','SPY','DIA','IWM','BTCDOM','ALL',
+    }
+    symbols = [s for s in symbols if s not in TRADIFI_WHITELIST]
+    
     return list(set(symbols))
 
 def check_binance_delist_announcements() -> Set[str]:
