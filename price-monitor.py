@@ -836,6 +836,8 @@ def main():
                     print(f"    📈 Trailing TP: {tp_price:.6f} -> {new_trailing_tp:.6f}")
                     update_tp_trailing(symbol, side, new_trailing_tp, sl_price)
                     tp_price = new_trailing_tp
+                    # Mark as trailing TP — only close on pullback, not immediately
+                    pos_data['trailing_tp_active'] = True
                     # Persist new TP to disk
                     pos_data['tp1'] = tp_price
                     saved_data[symbol] = pos_data
@@ -870,27 +872,47 @@ def main():
                     continue
                 
                 # Check if TP should trigger
-                if side == 'LONG' and current >= tp_price:
-                    print(f"    🎯 LONG TP HIT! {current:.6f} >= {tp_price:.6f}")
-                    result = close_position(symbol, 'SELL', abs(amt))
-                    if result and 'orderId' in result:
-                        pnl = (current - entry) * abs(amt)
-                        notify_trade('close', {
-                            'symbol': symbol, 'close_type': 'TP',
-                            'entry': entry, 'exit': current, 'pnl': pnl
-                        })
-                        log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP', pos_data)
-                        add_to_recently_closed(symbol)
-                    continue
+                # FIX (2026-05-13): When trailing TP is active, only close on pullback.
+                # Previously, trailing TP would close immediately because current > TP.
+                # Now: trailing TP only triggers when price drops TO the TP level.
+                is_trailing_tp = pos_data.get('trailing_tp_active', False)
+                if side == 'LONG':
+                    if is_trailing_tp:
+                        # Pullback: close when price drops to or below trailing TP
+                        tp_hit = current <= tp_price
+                    else:
+                        # Normal TP: close when price reaches TP
+                        tp_hit = current >= tp_price
+                    if tp_hit:
+                        close_reason = "Trailing TP pullback" if is_trailing_tp else "TP"
+                        print(f"    🎯 LONG TP HIT! {current:.6f} ({close_reason}) TP={tp_price:.6f}")
+                        result = close_position(symbol, 'SELL', abs(amt))
+                        if result and 'orderId' in result:
+                            pnl = (current - entry) * abs(amt)
+                            notify_trade('close', {
+                                'symbol': symbol, 'close_type': 'TP',
+                                'entry': entry, 'exit': current, 'pnl': pnl
+                            })
+                            log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP', pos_data)
+                            add_to_recently_closed(symbol)
+                        continue
                 
-                elif side == 'SHORT' and current <= tp_price:
-                    print(f"    🎯 SHORT TP HIT! {current:.6f} <= {tp_price:.6f}")
-                    result = close_position(symbol, 'BUY', abs(amt))
-                    if result and 'orderId' in result:
-                        pnl = (entry - current) * abs(amt)
-                        notify_trade('close', {
-                            'symbol': symbol, 'close_type': 'TP',
-                            'entry': entry, 'exit': current, 'pnl': pnl
+                elif side == 'SHORT':
+                    if is_trailing_tp:
+                        # Pullback: close when price rises to or above trailing TP
+                        tp_hit = current >= tp_price
+                    else:
+                        # Normal TP: close when price reaches TP
+                        tp_hit = current <= tp_price
+                    if tp_hit:
+                        close_reason = "Trailing TP pullback" if is_trailing_tp else "TP"
+                        print(f"    🎯 SHORT TP HIT! {current:.6f} ({close_reason}) TP={tp_price:.6f}")
+                        result = close_position(symbol, 'BUY', abs(amt))
+                        if result and 'orderId' in result:
+                            pnl = (entry - current) * abs(amt)
+                            notify_trade('close', {
+                                'symbol': symbol, 'close_type': 'TP',
+                                'entry': entry, 'exit': current, 'pnl': pnl
                         })
                         log_trade(symbol, side, entry, current, abs(amt), pnl, 'TP', pos_data)
                         add_to_recently_closed(symbol)
