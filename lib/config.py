@@ -51,7 +51,7 @@ SKIP_RECENT_HOURS = 24          # Skip re-entry for 24h after close
 # Auto-fetches all tradeable Binance Futures symbols, filters by volume,
 # excludes settling/delisting pairs. Refreshes every hour.
 # See dynamic_coins.py for implementation.
-DYNAMIC_COINS_ENABLED = True    # Use dynamic coin list instead of static SAFE_COINS
+DYNAMIC_COINS_ENABLED = False   # Use static SAFE_COINS (not dynamic)
 DYNAMIC_MIN_VOLUME = 2_000_000  # Minimum 24h volume in USDT ($2M)
 
 # ── LLM ANALYZER ────────────────────────────────────────────────────────────
