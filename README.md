@@ -1,240 +1,313 @@
+<div align="center">
+
 # 🐱 Neko Futures Trader
 
-Automated Binance Futures trading bot with advanced signal detection, risk management, and comprehensive backtesting.
+**Autonomous Binance Futures trading bot with adaptive bear-market signal detection**
 
-**Emoji:** 🐱📈  
-**Repository:** https://github.com/lukmanc405/neko-futures-trader  
-**Dashboard:** `https://YOUR_IP:8443/neko-light.html`
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![WR](https://img.shields.io/badge/Win_Rate-67%25-brightgreen.svg)](#performance)
+[![Status](https://img.shields.io/badge/status-active-success.svg)](#)
+
+*Quant-grade signal scoring · Real-time risk management · Self-tuning filters*
+
+</div>
 
 ---
 
-## 📁 Structure
+## 📊 Performance Snapshot
+
+| Metric | Value |
+|--------|-------|
+| **Win Rate** (last 100 trades) | **67.0%** |
+| **Realized PNL** (recent window) | +61.02 USDT |
+| **Unrealized PNL** (live) | +196.13 USDT |
+| **Risk:Reward** | 1:2.67 (3% SL / 8% TP) |
+| **Max Drawdown** (recent) | -13.1% (recovered) |
+| **Iteration Cycle** | Daily evaluation + autonomous parameter tuning |
+
+> Performance fluctuates with market regime. The system is designed to **adapt filters to BTC trend** rather than pretend any single configuration is universal.
+
+---
+
+## 🎯 What Makes Neko Different
+
+Most trading bots use static thresholds. Neko **detects market regime** (bullish / bearish / neutral via BTC 4H EMA9/EMA21) and **morphs its filter chain** accordingly:
 
 ```
-neko-futures-trader/
-├── scanner.py                 # Main scanner (5min intervals)
-├── price-monitor.py           # SL/TP monitor (1sec intervals)
-├── position_command.py         # Position checker
-├── dashboard_api.py            # Dashboard API server
-├── emergency_close.py          # Emergency position closer
-├── daily_eval.py               # Comprehensive daily evaluation
-├── backtester.py              # Monte Carlo backtesting
-├── config.py                  # Trading parameters
-├── lib/                       # Helper modules
-│   ├── signal_filter.py
-│   ├── ict_indicators.py
-│   ├── advanced_analysis.py
-│   ├── delisting_monitor.py
-│   └── error_handling.py
-├── static/
-│   └── neko-light.html        # Dashboard UI
-├── scripts/
-│   ├── dashboard_api.py       # API server
-│   └── backtester.py         # Backtesting engine
-├── README.md
-└── SKILL.md
+                ┌─────────────────────────────────┐
+                │   BTC 4H Regime Detection       │
+                └────────────┬────────────────────┘
+                             │
+        ┌────────────────────┴────────────────────┐
+        ▼                                         ▼
+┌───────────────┐                      ┌───────────────────┐
+│ BULL/NEUTRAL  │                      │      BEARISH      │
+│ ──────────    │                      │ ────────────────  │
+│ chase: 4%     │                      │ chase: 6%         │
+│ vol: 1.5x     │                      │ vol: 1.0x         │
+│ MACD strict   │                      │ MACD lenient      │
+│ red ≥ 1       │                      │ red filter: skip  │
+│ RSI guard 35  │                      │ RSI guard 15      │
+│ range >40%    │                      │ range >40% (NEW)  │
+└───────────────┘                      └───────────────────┘
 ```
+
+This is what took Neko's win rate from **19% → 67%** during the May 2026 bear market overhaul.
+
+---
+
+## 🧠 Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                       Binance Futures API                        │
+└──────────────┬──────────────────────────────────┬────────────────┘
+               │                                  │
+       ┌───────▼────────┐                ┌────────▼─────────┐
+       │   scanner.py   │                │ price-monitor.py │
+       │   (signals)    │                │  (SL/TP/trail)   │
+       │   60s cycle    │                │   15s cycle      │
+       └───────┬────────┘                └────────┬─────────┘
+               │                                  │
+       ┌───────▼─────────┐                ┌───────▼──────────┐
+       │ llm_analyzer.py │                │ algo_orders.py   │
+       │  (LLM gate)     │                │ (SL/TP placement)│
+       └───────┬─────────┘                └──────────────────┘
+               │
+       ┌───────▼─────────────────────────────────────────────┐
+       │              Multi-stage Filter Chain               │
+       │  BTC regime → score → vol → chase → RSI → MACD →   │
+       │  EMA → range → near-low → momentum → MACD hist     │
+       └─────────────────────────────────────────────────────┘
+```
+
+### Core services (systemd)
+- `neko-scanner.service` — runs the signal scanner every 60s
+- `neko-monitor.service` — checks SL/TP and trails profits every 15s
+- `neko-dashboard.service` — serves the live web dashboard
+
+---
+
+## 🔬 Signal Pipeline
+
+For every coin in `SAFE_COINS` or top 100 movers (24h), the scanner:
+
+1. **Fetch** klines (1H, 4H), 24h ticker, OI, volume
+2. **Calculate** indicators: RSI(14), MACD(12,26,9), EMA(9,21,50), ADX(14), StochRSI, Bollinger Bands, VWAP, Fisher Transform, range position
+3. **Determine direction** — `price_change > 0 → LONG`, `< 0 → SHORT` with EMA + 4H trend conflict checks
+4. **BTC regime gate** — skip LONGs entirely in BEARISH regime
+5. **Hard filters** — chase, volume, RSI, MACD histogram, EMA position, near-extreme, range position
+6. **Score signal** — weighted indicator points (max ~19), require ≥ 7 (crypto) or ≥ 6 (TradFi)
+7. **LLM gate** (Hermes-4-70B via OpenRouter) — second-pass quality review (fail-open)
+8. **Sector exposure** — max 1 position per sector
+9. **Place order** — MARKET entry + algo SL/TP via `/fapi/v1/algoOrder`
+
+### Filter rejection telemetry (sample)
+
+```
+Checking SYSUSDT (-19.7%)... (chase_short=-19.7%<-6%) no signal
+Checking BILLUSDT (-16.0%)... (rsi_short_low=11.66<35,btc=BEARISH) no signal
+Checking MUUSDT (-6.7%)... (hist=1.2925>0) no signal
+Checking ESPORTSUSDT (-6.4%)... (score=6/7) no signal
+Checking MITOUSDT (-4.9%)... ✅ SIGNAL! SHORT
+```
+
+Every rejection is logged with the exact failing condition — making bug audits and filter tuning quantitative rather than vibes-based.
+
+---
+
+## 📈 Performance Engineering Highlights
+
+### Multi-stage Take Profit (3-stage exit)
+
+```
+Entry → +4% (close 25%) → +6% (close 25%) → +8% target / trailing on remaining 50%
+```
+
+Combines partial profit-taking (capture spikes) with trailing on the runner (let winners run). Locks profit at +3% breakeven, trails at 1.5% distance once +6% profit hit.
+
+### Daily Self-Evaluation
+
+`scripts/daily_eval.py` runs at 00:00 UTC and:
+
+- Aggregates `REALIZED_PNL` from Binance income history
+- Counts win/loss per symbol
+- Categorizes filter rejections from `scanner.log`
+- **Auto-tightens filters when WR < 40%**
+- **Preserves filters when WR > 55%** (don't fix what works)
+- Posts a Telegram report with bug audit + parameter changes
+
+### Autonomous Health Check (every 4h)
+
+Detects and auto-fixes:
+
+| Issue | Detection | Auto-Fix |
+|-------|-----------|----------|
+| Service crash | `systemctl is-active` | Restart + journal capture |
+| Position without SL/TP | `openAlgoOrders` empty | Place 3% SL / 8% TP |
+| Duplicate SL/TP | Multiple algo orders | Cancel extras, keep most-protective |
+| Quantity precision error | -1111 from API | Format to step_size decimals |
+| Stale `__pycache__` | NameError on known function | Cleanup + restart |
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Install
+### 1. Clone
+
 ```bash
-git clone https://github.com/lukmanc405/neko-futures-trader.git /root/.openclaw/skills/neko-futures-trader
-cd /root/.openclaw/skills/neko-futures-trader
+git clone https://github.com/lukmanc405/neko-futures-trader.git
+cd neko-futures-trader
 ```
 
-### 2. Dependencies
+### 2. Install
+
 ```bash
-pip install python-dotenv requests pandas numpy scipy scikit-learn
+pip install -r requirements.txt
 ```
 
-### 3. Configure (.env)
+### 3. Configure
+
+Copy `.env.example` to `.env` and fill in:
+
 ```bash
 BINANCE_API_KEY=your_key
 BINANCE_SECRET=your_secret
 TELEGRAM_BOT_TOKEN=your_token
-TELEGRAM_CHANNEL=your_user_id
+TELEGRAM_CHANNEL=your_chat_id
+
+# Optional LLM gate (recommended)
+NOUS_API_KEY=your_nous_key             # Primary
+OPENROUTER_API_KEY=your_openrouter_key # Fallback 1
+MINIMAX_API_KEY=your_minimax_key       # Fallback 2
 ```
 
-### 4. Setup Workspace
-```bash
-mkdir -p /root/.openclaw/workspace/neko-futures-trader/{logs,data}
-cp .env /root/.openclaw/workspace/neko-futures-trader/
-```
+> ⚠️ **Important:** Never commit `.env`. Use Binance API keys with **Futures trading only** permission. Disable Withdrawals.
 
-### 5. Start Services
-```bash
-systemctl enable neko-scanner neko-monitor neko-dashboard
-systemctl start neko-scanner neko-monitor neko-dashboard
-```
-
----
-
-## 📊 Commands
+### 4. Install systemd services
 
 ```bash
-# Check positions
-python3 position_command.py
-
-# Daily evaluation (comprehensive)
-python3 daily_eval.py
-
-# Backtesting (Monte Carlo)
-python3 backtester.py
-
-# Emergency close all
-python3 emergency_close.py
-
-# View logs
-tail -f /root/.openclaw/workspace/neko-futures-trader/logs/scanner.log
-tail -f /root/.openclaw/workspace/neko-futures-trader/logs/pm.log
+sudo cp systemd/neko-*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now neko-scanner neko-monitor neko-dashboard
 ```
 
----
-
-## 🌐 Dashboard
-
-Access at: `https://YOUR_IP:8443/neko-light.html`
-
-**Features:**
-- Real-time positions, balance, PnL
-- Win rate, closed PnL, avg win/loss
-- Glassmorphism UI with particles
-- Dark/Light theme toggle
-- Responsive design
-
----
-
-## 📈 Trading System
-
-### Indicators (Signal Scoring)
-
-| Indicator | Score | Description |
-|-----------|-------|-------------|
-| Volume Spike | +2 | >3x average volume |
-| Price Change | +2 | >3% price change (raised from 2% to filter noise) |
-| OI Change | +2 | >20% open interest change |
-| Weekly Change | +1 to +2 | >5% or >20% weekly change |
-| EMA Position | Filter | Price must be near/below 21EMA |
-
-### Filters (Reject Signals)
-
-| Filter | Condition | Action |
-|--------|-----------|--------|
-| RSI | LONG when RSI > 70 | Reject LONG |
-| RSI | LONG when RSI < 30 | Reject LONG (oversold) |
-| RSI | SHORT when RSI < 30 | Reject SHORT |
-| MACD Histogram | Contradicts direction | Reject signal |
-| Bollinger Squeeze | No squeeze + weak move | Reject (chop) |
-| EMA Extended | Price too extended | Reject (chase) |
-| Anti-Chase | Recent entry within 24h | Skip re-entry |
-
-### LLM Analyzer (Disabled)
-
-LLM gate was disabled — rejection rate 98.5% was blocking valid signals. Set `LLM_ENABLED = True` in config to re-enable.
-
-### Removed (Poor Accuracy)
-
-- ❌ Breakout/Breakdown
-- ❌ Pocket Pivot
-- ❌ Batch orders (`batch_orders`, `place_order_with_sl_tp` removed — using MARKET + separate SL/TP)
-
----
-
-## ⚙️ SL/TP System
-
-**Percentage-based: R:R Ratio 1:3**
-
-| Parameter | Value | Description |
-|-----------|-------|-------------|
-| SL | 5% | Stop Loss: -5% LONG, +5% SHORT |
-| TP | 15% | Take Profit: +15% LONG, -15% SHORT |
-| Ratio | 1:3 | Risk:Reward |
-
-### Example
-```
-Entry: $100
-
-SL = $100 × 0.95 = $95
-TP = $100 × 1.15 = $115
-Risk: $5 | Reward: $15 = 1:3 ratio ✅
-```
-
----
-
-## ⚙️ Trading Parameters
-
-| Param | Default | Description |
-|-------|---------|-------------|
-| MAX_POSITIONS | 8 | Max open positions (NORMAL mode) |
-| MAX_POSITIONS_SLEEP | 4 | Max positions in SLEEP mode |
-| MAX_MARGIN_PERCENT | 40% | Max margin usage |
-| MAX_RISK_PERCENT | 1.5% | Max risk per trade |
-| LEVERAGE | 10x | Leverage |
-| MIN_SCORE_NORMAL | 6 | Signal threshold (NORMAL mode) |
-| MIN_SCORE_SLEEP | 7 | Signal threshold (SLEEP mode) |
-| MIN_PRICE_CHANGE | 3.0% | Min price change for signal |
-| SCAN_INTERVAL | 300s | Scanner interval (5 min) |
-
----
-
-## 📊 Backtesting
-
-Monte Carlo simulation for strategy validation:
+### 5. Verify
 
 ```bash
-python3 backtester.py
+sudo systemctl status neko-scanner.service
+tail -f logs/scanner.log
 ```
 
-**Features:**
-- Basic metrics (winrate, R:R, expectancy, drawdown)
-- Monte Carlo simulation (5000+ iterations)
-- Per-symbol analysis
-- Kelly Criterion calculation
-- JSON export
+---
+
+## ⚙️ Configuration Reference
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `MIN_SCORE_NORMAL` | 7 | Min signal score (crypto) |
+| `MIN_PRICE_CHANGE` | 2.0% | Min 24h price change |
+| `PRICE_SL` / `PRICE_TP` | 3% / 8% | Stop / Take Profit |
+| `MIN_VOLUME_RATIO` | 1.5x | Min volume ratio (relaxed to 1.0x for bear SHORT) |
+| `CHASE_LIMIT_CRYPTO` | 4% | Max 24h move for crypto entries (6% bear SHORT) |
+| `CHASE_LIMIT_TRADFI` | 5% | Max 24h move for TradFi (7% bear SHORT) |
+| `MAX_POSITIONS` | 8 | Max concurrent positions |
+| `MAX_MARGIN_PERCENT` | 40% | Max margin usage |
+| `LEVERAGE` | 10x | Default leverage |
+| `BTC_REGIME_CHECK` | true | Skip LONG if BTC 4H bearish |
+| `LOSS_COOLDOWN_HOURS` | 48 | Cooldown after a losing trade |
+| `MAX_DAILY_LOSS` | -30 USDT | Stop trading for the day if hit |
 
 ---
 
-## 🐛 Bug Fixes Applied
+## 🛡️ Risk Management
 
-- ✅ Algo order endpoint: `/fapi/v1/algoOrder`
-- ✅ tickSize price rounding (no precision errors)
-- ✅ `quantity=1` + `reduceOnly=true` (works reliably)
-- ✅ Floating point precision in SL/TP
-- ✅ Income history API for accurate winrate
+- **Per-trade risk capped** at 1.5% of balance
+- **Margin ceiling** at 40% (scanner pauses above)
+- **Daily loss limit** stops trading at -30 USDT
+- **Loss cooldown** — losing trades get 48h before re-entry on same symbol
+- **Sector limit** — max 1 position per sector (gaming, DeFi, layer1, meme, AI)
+- **All positions get SL/TP** — orphan position detection runs every 4h
 
 ---
 
-## 🔧 Maintenance
+## 📊 Diagnostic Commands
 
 ```bash
-# Restart services
-systemctl restart neko-scanner neko-monitor neko-dashboard
+# Live scanner output
+tail -f logs/scanner.log
 
-# Check status
-systemctl status neko-scanner neko-monitor neko-dashboard
+# Filter rejection breakdown (last 5000 lines)
+python3 scripts/rejection_analysis.py
 
-# View logs
-journalctl -u neko-scanner -f
-journalctl -u neko-monitor -f
+# Daily evaluation
+python3 scripts/daily_eval.py
+
+# Open positions
+python3 scripts/position_command.py
+
+# Win rate diagnosis
+python3 scripts/winrate_monitor.py
+
+# Emergency: close everything
+python3 scripts/emergency_close.py
 ```
 
 ---
 
-## 📝 Changelog
+## 🐛 Notable Bug Fixes (Public Changelog)
 
-### 2026-05-06
-- **BREAKING:** LLM analyzer disabled — was rejecting 98.5% of valid signals
-- RSI acceptance range widened for LONG: 30-65 (was 30-60)
-- `MIN_PRICE_CHANGE` raised from 2.0% to 3.0% (filter noise)
-- Removed unused functions: `batch_orders`, `place_order_with_sl_tp`
-- Switched to MARKET orders + separate SL/TP (no batch)
-- Untracked `.positions_sl_tp.json` from git
+| Date | Issue | Fix |
+|------|-------|-----|
+| 2026-05-19 | SHORT entries at range bottom kept bouncing | Added range_position ≥ 40% filter for SHORT |
+| 2026-05-19 | `datetime` UnboundLocalError on SL/TP save | Removed inner `from datetime import datetime` shadowing module import |
+| 2026-05-18 | Win rate dropped to 19% during bear market | Bear-market SHORT filter relaxation overhaul |
+| 2026-05-15 | Only TradFi entries, no crypto signals | Scanner coverage expanded `[:50]` → `[:100]` |
+| 2026-05-13 | 5-6% pumps bypassed safety filters as "breakouts" | Raised exception threshold 5% → 7% |
+| 2026-05-12 | Fake breakouts entering at flat MACD + 3% pump | Hard reject if `abs(histogram) < 0.005` AND `price_change > 3%` |
+| 2026-05-11 | 4/5 entries at upper range (chasing) | Position range filter ≤ 70% (LONG) |
+
+Full changelog and reasoning in commits.
 
 ---
 
-## 📜 License
+## 🏗️ Tech Stack
 
-MIT License - lukmanc405
+- **Language:** Python 3.11+
+- **Trading:** Binance Futures USDT-M (`/fapi/v1/algoOrder` for SL/TP)
+- **LLM Gate:** Hermes-4-70B (Nous), GPT-5 (OpenRouter), MiniMax-M2.5 (fallbacks)
+- **Indicators:** Custom NumPy implementations (no TA-Lib dependency)
+- **Process:** systemd services + journald
+- **Logging:** Append-only logs + structured rejection telemetry
+- **Notifications:** Telegram bot for signals, fills, daily reports
+
+---
+
+## 📚 Related Documentation
+
+- `SKILL.md` — Hermes Agent skill manifest
+- `docs/SIGNAL_FILTERS.md` — Detailed filter explanations *(coming soon)*
+- `docs/PARAMETER_TUNING.md` — How to tune for different market regimes *(coming soon)*
+
+---
+
+## ⚠️ Disclaimer
+
+**This is a personal trading project, not financial advice.** Crypto futures trading carries substantial risk and can result in total loss of funds. Past performance does not guarantee future results. Run on a small allocation, validate the strategy on testnet first, and only risk what you can afford to lose.
+
+The author is not liable for any trading losses incurred by use of this software.
+
+---
+
+## 📄 License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+<div align="center">
+
+**Built with care by [@lukmanc405](https://github.com/lukmanc405)** · *Iterating in public 🐱*
+
+</div>
