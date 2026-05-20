@@ -772,7 +772,73 @@ def main():
                         saved_data[symbol] = pos_data
                         save_positions_sl_tp(saved_data)
                         print(f"  {symbol}: [FALLBACK] Entry={entry:.6f} SL={sl_price:.6f} TP={tp_price:.6f} (config %)")
-                
+
+                # === AUTO-HEAL MISSING SL/TP (2026-05-20) ===
+                # Verify Binance side has both SL and TP placed. If scanner failed to
+                # place them on entry (network glitch, timeout, etc), they go missing
+                # forever. Detect + re-place. Throttled to avoid hitting rate limits.
+                heal_throttle_key = f'_heal_check_{symbol}'
+                last_heal_check = pos_data.get(heal_throttle_key, 0)
+                if (time.time() - last_heal_check) > 300:  # check every 5 min per symbol
+                    try:
+                        has_sl, has_tp = has_sl_tp_orders(symbol)
+                        if not has_sl or not has_tp:
+                            close_side = 'SELL' if side == 'LONG' else 'BUY'
+                            # Get tickSize for proper rounding
+                            try:
+                                info_r = requests.get('https://fapi.binance.com/fapi/v1/exchangeInfo', timeout=10)
+                                tick_size = 0.00001
+                                for s_info in info_r.json().get('symbols', []):
+                                    if s_info['symbol'] == symbol:
+                                        for f in s_info.get('filters', []):
+                                            if f.get('filterType') == 'PRICE_FILTER':
+                                                tick_size = float(f.get('tickSize', 0.00001))
+                                        break
+                                import math
+                                # Round to tickSize multiple AND format to correct decimals
+                                tick_str = f"{tick_size:.10f}".rstrip('0')
+                                decimals = len(tick_str.split('.')[1]) if '.' in tick_str else 0
+                                sl_floor = math.floor(sl_price / tick_size) * tick_size
+                                tp_floor = math.floor(tp_price / tick_size) * tick_size
+                                sl_rounded = float(f"{sl_floor:.{decimals}f}")
+                                tp_rounded = float(f"{tp_floor:.{decimals}f}")
+                            except:
+                                sl_rounded, tp_rounded = sl_price, tp_price
+
+                            if not has_sl:
+                                print(f"  {symbol}: [HEAL] Missing SL — placing @ {sl_rounded}")
+                                ts_h = int(time.time() * 1000)
+                                sl_p = f'symbol={symbol}&side={close_side}&type=STOP_MARKET&orderType=STOP_MARKET&algoType=CONDITIONAL&quantity=0&triggerPrice={sl_rounded}&stopPrice={sl_rounded}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={ts_h}'
+                                try:
+                                    rh = requests.post(f'https://fapi.binance.com/fapi/v1/algoOrder?{sl_p}&signature={get_sig(sl_p)}',
+                                                       headers={'X-MBX-APIKEY': API_KEY}, timeout=15)
+                                    if rh.status_code == 200:
+                                        print(f"  {symbol}: [HEAL] ✅ SL placed")
+                                    else:
+                                        print(f"  {symbol}: [HEAL] ⚠️ SL failed: {rh.text[:100]}")
+                                except Exception as e:
+                                    print(f"  {symbol}: [HEAL] ⚠️ SL error: {e}")
+
+                            if not has_tp:
+                                print(f"  {symbol}: [HEAL] Missing TP — placing @ {tp_rounded}")
+                                ts_h = int(time.time() * 1000)
+                                tp_p = f'symbol={symbol}&side={close_side}&type=TAKE_PROFIT_MARKET&orderType=TAKE_PROFIT_MARKET&algoType=CONDITIONAL&quantity=0&triggerPrice={tp_rounded}&stopPrice={tp_rounded}&workingType=CONTRACT_PRICE&closePosition=true&timestamp={ts_h}'
+                                try:
+                                    rh = requests.post(f'https://fapi.binance.com/fapi/v1/algoOrder?{tp_p}&signature={get_sig(tp_p)}',
+                                                       headers={'X-MBX-APIKEY': API_KEY}, timeout=15)
+                                    if rh.status_code == 200:
+                                        print(f"  {symbol}: [HEAL] ✅ TP placed")
+                                    else:
+                                        print(f"  {symbol}: [HEAL] ⚠️ TP failed: {rh.text[:100]}")
+                                except Exception as e:
+                                    print(f"  {symbol}: [HEAL] ⚠️ TP error: {e}")
+
+                        pos_data[heal_throttle_key] = time.time()
+                        saved_data[symbol] = pos_data
+                        save_positions_sl_tp(saved_data)
+                    except Exception as e:
+                        print(f"  {symbol}: [HEAL] ⚠️ check error: {e}")
+
                 # Check for Multi-TP levels (partial closes)
                 # Store original amount in pos_data so it persists across iterations
                 if 'original_amt' not in pos_data:
