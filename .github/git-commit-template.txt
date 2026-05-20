@@ -1,0 +1,7 @@
+# <type>(<scope>): <subject>  (max 70 chars)
+#
+# <body — what & why, not how>
+#
+# <footers>
+Co-Authored-By: Claude <noreply@anthropic.com>
+Co-Authored-By: Hermes Agent <noreply@nousresearch.com>
