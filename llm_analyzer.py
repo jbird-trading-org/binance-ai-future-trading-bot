@@ -332,12 +332,21 @@ def rule_based_backup(analysis):
             f"Score {score} < backup min {LLM_BACKUP_MIN_SCORE}")
 
     # ── Gate 2: Anti-chase ───────────────────────────────────────────────
-    if direction == 'LONG' and price_change > LLM_BACKUP_MAX_CHASE:
+    # Bear market SHORT: relax chase to 6% (dumps are normal)
+    # Bull market LONG: relax chase to 6% (rallies are normal)
+    _chase = LLM_BACKUP_MAX_CHASE
+    if direction == 'SHORT' and price_change < 0:
+        # In bear dumps, coins routinely fall 5-10% — 4% is too tight
+        _chase = max(_chase, 6.0)
+    if direction == 'LONG' and price_change > 0:
+        # In bull rallies, coins pump 5-8% — 4% is too tight
+        _chase = max(_chase, 6.0)
+    if direction == 'LONG' and price_change > _chase:
         return _backup_reject(symbol, direction,
-            f"Chase LONG: +{price_change:.1f}% > {LLM_BACKUP_MAX_CHASE}%")
-    if direction == 'SHORT' and price_change < -LLM_BACKUP_MAX_CHASE:
+            f"Chase LONG: +{price_change:.1f}% > {_chase}%")
+    if direction == 'SHORT' and price_change < -_chase:
         return _backup_reject(symbol, direction,
-            f"Chase SHORT: {price_change:.1f}% < -{LLM_BACKUP_MAX_CHASE}%")
+            f"Chase SHORT: {price_change:.1f}% < -{_chase}%")
 
     # ── Gate 3: RSI bounds ───────────────────────────────────────────────
     if direction == 'LONG':
