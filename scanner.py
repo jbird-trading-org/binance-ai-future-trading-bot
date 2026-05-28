@@ -89,7 +89,7 @@ except NameError:
 try:
     MIN_SCORE_NORMAL
 except NameError:
-    MIN_SCORE_NORMAL = 6  # 2026-05-18 OVERHAUL: Back to 7 — 6 produced 22% WR, -117 USDT. Quality > quantity.  # 2026-05-17: Lowered from 7 — LLM + filters act as quality gates
+    MIN_SCORE_NORMAL = 7  # 2026-05-27: Aligned with config.py (was 6). Hard filters provide quality gate.
 
 # Load delisting blocklist
 try:
@@ -1327,7 +1327,7 @@ def analyze_symbol(symbol, stats, btc_regime='NEUTRAL'):
     
     # TradFi detection — use relaxed thresholds
     _is_tradfi = is_tradfi(symbol)
-    _macd_flat_threshold = 0.001 if _is_tradfi else 0.008  # 2026-05-17: Raised from 0.005 — too many momentum entries blocked (202 rejections). 0.008 catches truly flat MACD while allowing real momentum.
+    _macd_flat_threshold = 0.001 if _is_tradfi else 0.012  # 2026-05-27 Auto-tuned: 0.008→0.012 — 27% rejection rate from macd_flat
     
     # Get candles first to check volume/momentum
     candles = get_klines(symbol, '1h', 50)
@@ -1689,6 +1689,8 @@ def analyze_symbol(symbol, stats, btc_regime='NEUTRAL'):
                 long_score -= 1  # Penalty only — extreme move is real momentum
             elif btc_regime == 'BULLISH':
                 long_score -= 1  # Bull market — MACD naturally flat during rallies, penalty only
+            elif btc_regime == 'NEUTRAL':
+                long_score -= 1  # 2026-05-27: NEUTRAL = choppy, MACD naturally flat. Penalty only.
             elif adx_value > 25:
                 long_score -= 1  # Strong trend — MACD catching up to price, penalty only
             elif vol_ratio > 2.0 and price_change > 3:
@@ -1773,6 +1775,8 @@ def analyze_symbol(symbol, stats, btc_regime='NEUTRAL'):
                 short_score -= 1  # Penalty only — extreme drop is real momentum
             elif btc_regime == 'BEARISH':
                 short_score -= 1  # Bear market — MACD naturally flat during dumps, penalty only
+            elif btc_regime == 'NEUTRAL':
+                short_score -= 1  # 2026-05-27: NEUTRAL = choppy, MACD naturally flat. Penalty only.
             elif adx_value > 25:
                 short_score -= 1  # Strong trend — MACD catching up to price, penalty only
             elif vol_ratio > 2.0 and price_change < -3:
@@ -2010,6 +2014,9 @@ def analyze_symbol(symbol, stats, btc_regime='NEUTRAL'):
     # 35% allows entries in lower-middle range while still avoiding extreme bottoms
     if direction == "SHORT" and len(closes) >= 30:
         _range_limit_short = 25 if _is_tradfi else 35
+        # 2026-05-27: BEARISH + ADX exception — in strong downtrend, lower range is expected
+        if btc_regime == 'BEARISH' and adx_value > 25:
+            _range_limit_short = 20 if _is_tradfi else 25
         range_30_high = max(highs[-30:])
         range_30_low = min(lows[-30:])
         if range_30_high > range_30_low:
@@ -2635,6 +2642,25 @@ def main():
                     # Track sector rejections for summary
                     sector_rejections[sector_reason] = sector_rejections.get(sector_reason, 0) + 1
                     continue
+                
+                # === SAME DIRECTION CHECK (2026-05-27 — prevent stacking) ===
+                direction = analysis['direction']
+                try:
+                    _pos_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.positions_sl_tp.json')
+                    if os.path.exists(_pos_file):
+                        with open(_pos_file) as _pf:
+                            _pos_data = json.load(_pf)
+                        _same_dir_count = 0
+                        for _sym, _pd in _pos_data.items():
+                            _pos_side = _pd.get('side', '')
+                            if (direction == 'LONG' and _pos_side == 'BUY') or (direction == 'SHORT' and _pos_side == 'SELL'):
+                                _same_dir_count += 1
+                        _max_dir = MAX_SAME_DIRECTION if 'MAX_SAME_DIRECTION' in globals() else 4
+                        if _same_dir_count >= _max_dir:
+                            print(f"  ⚠️ Skipped: {_same_dir_count} {direction} positions (max {_max_dir})")
+                            continue
+                except Exception:
+                    pass
 
                 # Calculate quantity with proper floor (not int truncation)
                 trade_amount = (balance * ENTRY_PERCENT / 100) * LEVERAGE

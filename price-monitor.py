@@ -857,9 +857,9 @@ def main():
                 # Previously, if price spiked down, position would close at old SL
                 # instead of the updated trailing SL, causing unnecessary losses.
                 try:
-                    be_thresh = MIN_PROFIT_BREAKEVEN if 'MIN_PROFIT_BREAKEVEN' in dir() else 5.0
-                    trail_dist_sl = TRAIL_SL_DISTANCE if 'TRAIL_SL_DISTANCE' in dir() else 2.0
-                    lock_pct = TRAIL_SL_LOCK if 'TRAIL_SL_LOCK' in dir() else 2.0
+                    be_thresh = MIN_PROFIT_BREAKEVEN if 'MIN_PROFIT_BREAKEVEN' in globals() else 5.0
+                    trail_dist_sl = TRAIL_SL_DISTANCE if 'TRAIL_SL_DISTANCE' in globals() else 2.0
+                    lock_pct = TRAIL_SL_LOCK if 'TRAIL_SL_LOCK' in globals() else 2.0
                 except:
                     be_thresh = 5.0
                     trail_dist_sl = 2.0
@@ -892,8 +892,8 @@ def main():
 
                 # Check for trailing TP - activate when profit > configured %
                 try:
-                    trail_thresh = MIN_PROFIT_TRAILING_TP if 'MIN_PROFIT_TRAILING_TP' in dir() else 10.0
-                    trail_dist = TRAIL_PERCENT if 'TRAIL_PERCENT' in dir() else 2.0
+                    trail_thresh = MIN_PROFIT_TRAILING_TP if 'MIN_PROFIT_TRAILING_TP' in globals() else 10.0
+                    trail_dist = TRAIL_PERCENT if 'TRAIL_PERCENT' in globals() else 2.0
                 except:
                     trail_thresh = 10.0
                     trail_dist = 2.0

@@ -4,6 +4,7 @@
 # ── TRADING ──────────────────────────────────────────────────────────────────
 LEVERAGE = 10                    # Futures leverage (10x)
 MAX_POSITIONS = 8                # Max concurrent positions
+MAX_SAME_DIRECTION = 4           # 2026-05-27: Max positions in same direction (prevent 6 SHORT stacking)
 AUTO_FILL_EMPTY_SLOTS = True     # Auto-find entries when positions < MAX
 ENTRY_PERCENT = 8                # % of balance per trade (NORMAL mode)
 
@@ -14,7 +15,7 @@ ENTRY_PERCENT_SLEEP = 5          # Entry % in SLEEP mode
 MIN_SCORE_SLEEP = 7             # Min score to enter in SLEEP mode
 
 # ── NORMAL MODE ──────────────────────────────────────────────────────────────
-MIN_SCORE_NORMAL = 8             # 2026-05-26: 7→8 — reverting, score-7 entries losing money
+MIN_SCORE_NORMAL = 7  # Auto-tuner v2: Revert to minimum safe threshold (was 6.0)
 
 # ── SL/TP STRATEGY (2026-05-18 OVERHAUL) ────────────────────────────────────
 # Old: SL=5%, TP=15% → 22% WR, big losses. New: SL=3%, TP=8% → tighter risk, better R:R
@@ -22,9 +23,9 @@ PRICE_TP = 6.0                  # 2026-05-23: TP 6% — lebih sering kena TP, wi
 PRICE_SL = 3.0                  # Stop Loss: -3% for LONG, +3% for SHORT
 
 # ── BREAKEVEN & TRAILING ─────────────────────────────────────────────────────
-MIN_PROFIT_BREAKEVEN = 3.0       # % profit to start trailing SL (was 5%)
-TRAIL_SL_LOCK = 1.5              # % profit to lock when trailing (was 2%)
-TRAIL_SL_DISTANCE = 1.5          # SL trails this % below current price (was 2%)
+MIN_PROFIT_BREAKEVEN = 1.5       # 2026-05-27: 3.0→1.5 — trailing starts earlier, lock small profits > lose big
+TRAIL_SL_LOCK = 1.0              # 2026-05-27: 1.5→1.0 — lock less at start (earlier activation)
+TRAIL_SL_DISTANCE = 1.0          # 2026-05-27: 1.5→1.0 — tighter trail to protect small profits
 MIN_PROFIT_TRAILING_TP = 6.0    # % profit to activate trailing TP (was 10%)
 TRAIL_PERCENT = 1.5             # Trail TP by this % when trailing (was 2%)
 
@@ -48,8 +49,8 @@ SCAN_INTERVAL = 300             # Scanner run every 5 minutes
 MIN_PRICE_CHANGE = 2.0          # Min % price change for signal (was 3.0, too strict for sideways market)
 SKIP_RECENT_HOURS = 24          # Skip re-entry for 24h after close
 LOSS_COOLDOWN_HOURS = 48        # 2026-05-18: Skip re-entry 48h after a LOSS (prevent revenge trading)
-MIN_VOLUME_RATIO = 1.5          # 2026-05-25: Raised from 1.5 — 50 consecutive losses, worst performers (LA,CLO,FHE,FET) are low-volume coins. Filter harder.
-CHASE_LIMIT_CRYPTO = 4.0        # 2026-05-25: 4.0→3.5 — 50 consecutive losses, 0% WR, 78h drought. Partial revert to tighten entry filter.
+MIN_VOLUME_RATIO = 1.2  # Auto-tuned: 1.5→1.2 (relax volume filter)
+CHASE_LIMIT_CRYPTO = 5.0  # Auto-tuned: 4.0→5.0 (relax chase limit)
 CHASE_LIMIT_TRADFI = 5.0        # Max % change for TradFi entries
 BTC_REGIME_CHECK = True         # 2026-05-8: Skip LONG if BTC 4H trend is bearish
 
@@ -77,7 +78,7 @@ LLM_FALLBACK2_BASE_URL = "https://api.minimaxi.chat/v1/chat/completions"
 LLM_FALLBACK2_MODEL = "MiniMax-M2.5"
 
 # ── RISK ─────────────────────────────────────────────────────────────────────
-MAX_MARGIN_PERCENT = 40
+MAX_MARGIN_PERCENT = 45
 MAX_RISK_PERCENT = 1.5
 MAX_DAILY_LOSS = 0               # Disabled 2026-05-25 per user request (was -30 USDT)
 
