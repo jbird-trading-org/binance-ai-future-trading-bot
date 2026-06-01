@@ -3,14 +3,14 @@
 
 # ── TRADING ──────────────────────────────────────────────────────────────────
 LEVERAGE = 10                    # Futures leverage (10x)
-MAX_POSITIONS = 8                # Max concurrent positions
-MAX_SAME_DIRECTION = 4           # 2026-05-27: Max positions in same direction (prevent 6 SHORT stacking)
+MAX_POSITIONS = 3                # 2026-05-30: REAL WR=54.8% (-148 USDT). AUTO-TUNER: WR>60%→5, WR<55%→3
+MAX_SAME_DIRECTION = 2           # MAX_POSITIONS-1
 AUTO_FILL_EMPTY_SLOTS = True     # Auto-find entries when positions < MAX
 ENTRY_PERCENT = 8                # % of balance per trade (NORMAL mode)
 
 # ── SLEEP MODE ───────────────────────────────────────────────────────────────
 SLEEP_MODE = False              # Sleep mode toggle (use ./sleepmode command)
-MAX_POSITIONS_SLEEP = 4          # Max positions in SLEEP mode
+MAX_POSITIONS_SLEEP = 2          # AUTO-TUNER: MAX_POSITIONS-1 (2026-05-30)
 ENTRY_PERCENT_SLEEP = 5          # Entry % in SLEEP mode
 MIN_SCORE_SLEEP = 7             # Min score to enter in SLEEP mode
 
@@ -49,8 +49,8 @@ SCAN_INTERVAL = 300             # Scanner run every 5 minutes
 MIN_PRICE_CHANGE = 2.0          # Min % price change for signal (was 3.0, too strict for sideways market)
 SKIP_RECENT_HOURS = 24          # Skip re-entry for 24h after close
 LOSS_COOLDOWN_HOURS = 48        # 2026-05-18: Skip re-entry 48h after a LOSS (prevent revenge trading)
-MIN_VOLUME_RATIO = 1.2  # Auto-tuned: 1.5→1.2 (relax volume filter)
-CHASE_LIMIT_CRYPTO = 5.0  # Auto-tuned: 4.0→5.0 (relax chase limit)
+MIN_VOLUME_RATIO = 1.5  # Auto-tuned: 1.5→1.2 (relax volume filter)
+CHASE_LIMIT_CRYPTO = 3.5  # Auto-tuned: 4.0→5.0 (relax chase limit)
 CHASE_LIMIT_TRADFI = 5.0        # Max % change for TradFi entries
 BTC_REGIME_CHECK = True         # 2026-05-8: Skip LONG if BTC 4H trend is bearish
 
@@ -60,6 +60,7 @@ BTC_REGIME_CHECK = True         # 2026-05-8: Skip LONG if BTC 4H trend is bearis
 # See dynamic_coins.py for implementation.
 DYNAMIC_COINS_ENABLED = True    # 2026-05-17: Enabled — static SAFE_COINS only covers 18% of market, missing 97% of volatile movers
 DYNAMIC_MIN_VOLUME = 2_000_000  # Minimum 24h volume in USDT ($2M)
+BLACKLISTED_SYMBOLS = ["TRUSTUSDT", "B2USDT", "PROMPTUSDT", "MITOUSDT", "MAGMAUSDT", "FETUSDT", "XPLUSDT", "LABUSDT", "RVNUSDT", "INTCUSDT", "NAORISUSDT", "CLOUSDT", "FHEUSDT", "PLAYUSDT", "GWEIUSDT", "UAIUSDT", "AINUSDT", "VELVETUSDT", "MIRAUSDT", "AKTUSDT", "BIOUSDT", "DODOXUSDT", "CVCUSDT", "SIRENUSDT", "FUSDT"]  # AUTO-TUNER: +SIRENUSDT (0W/3L, -26.21 USDT) +FUSDT (0W/18L, -24.13 USDT) — 2026-05-31
 
 # ── LLM ANALYZER ────────────────────────────────────────────────────────────
 LLM_ENABLED = True               # Re-enabled 2026-05-15 with volume filter
@@ -80,7 +81,7 @@ LLM_FALLBACK2_MODEL = "MiniMax-M2.5"
 # ── RISK ─────────────────────────────────────────────────────────────────────
 MAX_MARGIN_PERCENT = 45
 MAX_RISK_PERCENT = 1.5
-MAX_DAILY_LOSS = 0               # Disabled 2026-05-25 per user request (was -30 USDT)
+MAX_DAILY_LOSS = -30               # Disabled 2026-05-25 per user request (was -30 USDT)
 
 # ── SAFE COINS (FALLBACK — only used if DYNAMIC_COINS_ENABLED = False) ───────
 # Static list as backup. Dynamic mode fetches live from Binance API.
@@ -97,13 +98,13 @@ SAFE_COINS = [
     'SEIUSDT','TIAUSDT','INJUSDT','WIFUSDT','ORDIUSDT',
     'RENDERUSDT','TAOUSDT','ONDOUSDT','PENDLEUSDT','STXUSDT',
     'TRXUSDT','EIGENUSDT','DYDXUSDT','CAKEUSDT','ENSUSDT',
-    'FETUSDT','WLDUSDT','JUPUSDT','1000PEPEUSDT','1000SHIBUSDT',
+    'WLDUSDT','JUPUSDT','1000PEPEUSDT','1000SHIBUSDT',
     '1000BONKUSDT','ENAUSDT','PENGUUSDT','TRUMPUSDT','TONUSDT',
     'HYPEUSDT','POLUSDT',
     # === STOCK PERPS ===
     'TSLAUSDT','NVDAUSDT','AAPLUSDT','AMZNUSDT','GOOGLUSDT','METAUSDT',
     'MSFTUSDT','AMDUSDT','COINUSDT','MSTRUSDT','HOODUSDT','CRCLUSDT',
-    'PLTRUSDT','BABAUSDT','INTCUSDT','TSMUSDT','AVGOUSDT','QCOMUSDT',
+    'PLTRUSDT','BABAUSDT','TSMUSDT','AVGOUSDT','QCOMUSDT',
     'MUUSDT','BILLUSDT','SNDKUSDT','EWYUSDT',
     # === STOCK INDICES ===
     'QQQUSDT','SPYUSDT',

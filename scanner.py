@@ -2446,6 +2446,25 @@ def main():
     except Exception as e:
         print(f"  ⚠️ Orphan cleanup error: {e}")
     
+    # ── Cache exchangeInfo ONCE per scan cycle (not per symbol) ──
+    _exchange_info_cache = {}
+    try:
+        _info_r = requests.get('https://fapi.binance.com/fapi/v1/exchangeInfo', timeout=10)
+        for s in _info_r.json().get('symbols', []):
+            _step = 0.001
+            _min_qty = 0.001
+            _min_not = 5.0
+            for f in s.get('filters', []):
+                if f.get('filterType') == 'LOT_SIZE':
+                    _step = float(f.get('stepSize', 0.001))
+                    _min_qty = float(f.get('minQty', 0.001))
+                elif f.get('filterType') == 'MIN_NOTIONAL':
+                    _min_not = float(f.get('notional', 5))
+            _exchange_info_cache[s['symbol']] = {'step_size': _step, 'min_qty': _min_qty, 'min_notional': _min_not}
+        print(f"  📦 Cached exchangeInfo for {len(_exchange_info_cache)} symbols")
+    except Exception as e:
+        print(f"  ⚠️ exchangeInfo cache failed: {e}")
+    
     balance = get_balance()
     positions = get_positions()
     open_count = len(positions)
@@ -2579,6 +2598,13 @@ def main():
         active_coins = set(SAFE_COINS)
     movers_filtered = [(s, p) for s, p in movers if s in active_coins]
     
+    # Blacklist filter — skip symbols user never wants to trade
+    try:
+        _bl = set(BLACKLISTED_SYMBOLS)
+        movers_filtered = [(s, p) for s, p in movers_filtered if s not in _bl]
+    except NameError:
+        pass
+    
     # 2026-05-18: Scan BOTH top gainers (for LONG) AND top losers (for SHORT)
     # Previously only top 100 gainers were scanned — losers never got checked
     # 2026-05-21: Scan ALL coins — sweet spot (2-6%) was being skipped entirely
@@ -2594,7 +2620,7 @@ def main():
     movers_filtered = scan_list
     
     # Check safe coins with momentum (expanded from 50 to 100 — May 2026)
-    for symbol, change in movers_filtered[:500]:
+    for symbol, change in movers_filtered[:100]:
         if open_count >= MAX_POSITIONS:
             break
         
@@ -2665,21 +2691,12 @@ def main():
                 # Calculate quantity with proper floor (not int truncation)
                 trade_amount = (balance * ENTRY_PERCENT / 100) * LEVERAGE
                 
-                # Get step size for proper quantity formatting
+                # Get step size from cached exchangeInfo (fetched once per cycle)
                 try:
-                    info_r = requests.get('https://fapi.binance.com/fapi/v1/exchangeInfo', timeout=10)
-                    step_size = 0.001
-                    min_qty = 0.001
-                    min_notional = 5.0
-                    for s in info_r.json().get('symbols', []):
-                        if s['symbol'] == symbol:
-                            for f in s.get('filters', []):
-                                if f.get('filterType') == 'LOT_SIZE':
-                                    step_size = float(f.get('stepSize', 0.001))
-                                    min_qty = float(f.get('minQty', 0.001))
-                                elif f.get('filterType') == 'MIN_NOTIONAL':
-                                    min_notional = float(f.get('notional', 5))
-                            break
+                    _info = _exchange_info_cache.get(symbol, {})
+                    step_size = _info.get('step_size', 0.001)
+                    min_qty = _info.get('min_qty', 0.001)
+                    min_notional = _info.get('min_notional', 5.0)
                 except:
                     step_size = 0.001
                     min_notional = 5.0
@@ -2799,10 +2816,17 @@ def main():
         print(f"  📊 Sector rejections: {total_sector} ({breakdown})")
 
 if __name__ == "__main__":
+    backoff = 60
+    max_backoff = 600
     while True:
         try:
             main()
+            backoff = 60  # Reset on success
         except Exception as e:
             print(f"Error: {e}")
-        print("Sleeping 60s before next scan...")
-        time.sleep(60)
+            print(f"Backing off {backoff}s before retry...")
+            time.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)
+            continue
+        print(f"Sleeping {backoff}s before next scan...")
+        time.sleep(backoff)
