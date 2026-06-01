@@ -2605,6 +2605,94 @@ def main():
     except NameError:
         pass
     
+    # === AUTO-BLACKLIST (2026-06-01 INNOVATION) ===
+    # Auto-blacklist symbols with N consecutive losses (no win in between)
+    _auto_bl_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.auto_blacklist.json')
+    try:
+        _auto_bl_enabled = AUTO_BLACKLIST_ENABLED if 'AUTO_BLACKLIST_ENABLED' in globals() else True
+        _auto_bl_threshold = AUTO_BLACKLIST_CONSECUTIVE_LOSSES if 'AUTO_BLACKLIST_CONSECUTIVE_LOSSES' in globals() else 3
+        if _auto_bl_enabled:
+            # Count consecutive losses per symbol from .recently_closed
+            _sym_losses = {}  # symbol -> list of results in chronological order
+            try:
+                with open('.recently_closed', 'r') as _f:
+                    for _line in _f:
+                        _parts = _line.strip().split(',')
+                        if len(_parts) >= 3:
+                            _sym = _parts[0]
+                            _ts = int(_parts[1])
+                            _result = _parts[2]  # 'loss' or 'win'
+                            if _sym not in _sym_losses:
+                                _sym_losses[_sym] = []
+                            _sym_losses[_sym].append((_ts, _result))
+            except Exception:
+                pass
+            
+            # Also check .trade_history.json for more data
+            try:
+                _th_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.trade_history.json')
+                if os.path.exists(_th_path):
+                    with open(_th_path) as _thf:
+                        _trades = json.load(_thf)
+                    for _t in _trades[-200:]:  # Last 200 trades
+                        _sym = _t.get('symbol', '')
+                        _pnl = float(_t.get('pnl', 0))
+                        _ts = int(_t.get('timestamp', 0))
+                        if _sym and _ts:
+                            if _sym not in _sym_losses:
+                                _sym_losses[_sym] = []
+                            _sym_losses[_sym].append((_ts, 'loss' if _pnl < 0 else 'win'))
+            except Exception:
+                pass
+            
+            # Find symbols with N consecutive losses (from most recent)
+            _new_auto_bl = []
+            for _sym, _results in _sym_losses.items():
+                if len(_results) < _auto_bl_threshold:
+                    continue
+                # Sort by timestamp descending (most recent first)
+                _results.sort(key=lambda x: x[0], reverse=True)
+                _consec_losses = 0
+                for _, _r in _results:
+                    if _r == 'loss':
+                        _consec_losses += 1
+                    else:
+                        break  # Win breaks the streak
+                if _consec_losses >= _auto_bl_threshold:
+                    _new_auto_bl.append(_sym)
+            
+            # Load existing auto-blacklist and merge
+            _existing_auto_bl = set()
+            try:
+                if os.path.exists(_auto_bl_path):
+                    with open(_auto_bl_path) as _abf:
+                        _existing_auto_bl = set(json.load(_abf))
+            except Exception:
+                pass
+            
+            _combined_auto_bl = _existing_auto_bl | set(_new_auto_bl)
+            
+            # Save updated auto-blacklist
+            if _new_auto_bl:
+                try:
+                    with open(_auto_bl_path, 'w') as _abf:
+                        json.dump(list(_combined_auto_bl), _abf, indent=2)
+                    _new_syms = set(_new_auto_bl) - _existing_auto_bl
+                    if _new_syms:
+                        print(f"  🚫 AUTO-BLACKLISTED: {', '.join(_new_syms)} ({_auto_bl_threshold}+ consecutive losses)")
+                except Exception:
+                    pass
+            
+            # Apply auto-blacklist filter
+            if _combined_auto_bl:
+                _before = len(movers_filtered)
+                movers_filtered = [(s, p) for s, p in movers_filtered if s not in _combined_auto_bl]
+                _blocked = _before - len(movers_filtered)
+                if _blocked > 0:
+                    print(f"  🚫 Auto-blacklist blocked {_blocked} symbols")
+    except Exception as _abl_err:
+        print(f"  ⚠️ Auto-blacklist error: {_abl_err}")
+    
     # 2026-05-18: Scan BOTH top gainers (for LONG) AND top losers (for SHORT)
     # Previously only top 100 gainers were scanned — losers never got checked
     # 2026-05-21: Scan ALL coins — sweet spot (2-6%) was being skipped entirely
@@ -2658,8 +2746,14 @@ def main():
                         print(f"  🧠 LLM REJECTED: {llm_result['reason']}")
                         continue  # Skip this signal
                     else:
+                        # 2026-06-01: Confidence gate — reject low-confidence approvals
+                        _min_conf = LLM_MIN_CONFIDENCE if 'LLM_MIN_CONFIDENCE' in globals() else 0.6
+                        _conf = llm_result.get('confidence', 0.5)
+                        if _conf < _min_conf:
+                            print(f"  🧠 LLM LOW CONFIDENCE: {_conf:.2f} < {_min_conf} — {llm_result['reason'][:40]}")
+                            continue
                         reason_short = llm_result['reason'][:60]
-                        print(f"  🧠 LLM APPROVED: {reason_short} ({llm_result.get('latency_ms', 0)}ms)")
+                        print(f"  🧠 LLM APPROVED: {reason_short} (conf={_conf:.2f}, {llm_result.get('latency_ms', 0)}ms)")
                 
                 # === SECTOR EXPOSURE CHECK (Apr 27 - diversification) ===
                 sector_ok, sector_reason = check_sector_exposure(symbol, positions)
@@ -2689,7 +2783,27 @@ def main():
                     pass
 
                 # Calculate quantity with proper floor (not int truncation)
-                trade_amount = (balance * ENTRY_PERCENT / 100) * LEVERAGE
+                # 2026-06-01: Confidence-based sizing
+                _entry_pct = ENTRY_PERCENT
+                try:
+                    _conf_sizing = CONFIDENCE_SIZING if 'CONFIDENCE_SIZING' in globals() else True
+                    if _conf_sizing and llm_result and llm_result.get('confidence'):
+                        _conf = llm_result['confidence']
+                        _c_low = CONFIDENCE_LOW if 'CONFIDENCE_LOW' in globals() else 0.5
+                        _c_med = CONFIDENCE_MED if 'CONFIDENCE_MED' in globals() else 0.7
+                        _c_high = CONFIDENCE_HIGH if 'CONFIDENCE_HIGH' in globals() else 0.85
+                        if _conf < _c_low:
+                            _entry_pct = 0  # Skip
+                        elif _conf < _c_med:
+                            _entry_pct = ENTRY_PERCENT * 0.75  # 75% size
+                        elif _conf < _c_high:
+                            _entry_pct = ENTRY_PERCENT * 0.875  # 87.5% size
+                        # else: full size
+                        if _entry_pct != ENTRY_PERCENT:
+                            print(f"  📊 Confidence sizing: conf={_conf:.2f} → {_entry_pct:.1f}% (was {ENTRY_PERCENT}%)")
+                except Exception:
+                    _entry_pct = ENTRY_PERCENT
+                trade_amount = (balance * _entry_pct / 100) * LEVERAGE
                 
                 # Get step size from cached exchangeInfo (fetched once per cycle)
                 try:

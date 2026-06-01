@@ -35,7 +35,9 @@ import requests
 # === CONFIG (override from config.py if available) ===
 try:
     from config import (LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, LLM_MIN_SCORE,
-                        LLM_TEMPERATURE, LLM_FALLBACK1_ENABLED,
+                        LLM_TEMPERATURE, LLM_TIMEOUT, LLM_CACHE_TTL,
+                        LLM_MIN_CONFIDENCE,
+                        LLM_FALLBACK1_ENABLED,
                         LLM_FALLBACK1_BASE_URL, LLM_FALLBACK1_MODEL,
                         LLM_FALLBACK2_ENABLED,
                         LLM_FALLBACK2_BASE_URL, LLM_FALLBACK2_MODEL)
@@ -45,6 +47,9 @@ except ImportError:
     LLM_BASE_URL = "https://inference-api.nousresearch.com/v1/chat/completions"
     LLM_MIN_SCORE = 4
     LLM_TEMPERATURE = 0.1
+    LLM_TIMEOUT = 15
+    LLM_CACHE_TTL = 300
+    LLM_MIN_CONFIDENCE = 0.6
     LLM_FALLBACK1_ENABLED = True
     LLM_FALLBACK1_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
     LLM_FALLBACK1_MODEL = "nousresearch/hermes-4-70b"
@@ -59,7 +64,7 @@ LLM_FALLBACK2_API_KEY = os.environ.get("MINIMAX_API_KEY", "")
 
 # === CACHE ===
 _analysis_cache = {}
-CACHE_TTL = 300  # 5 min cache
+CACHE_TTL = LLM_CACHE_TTL  # Now from config.py
 
 
 def _get_cache_key(symbol, direction, score):
@@ -171,10 +176,11 @@ def _do_api_call(url, api_key, model, payload, timeout, max_retries=2):
     return None
 
 
-def call_llm(prompt, model=None, timeout=15):
+def call_llm(prompt, model=None, timeout=None):
     """Call LLM with 3-tier fallback: Nous → OpenRouter → MiniMax."""
 
     model = model or LLM_MODEL
+    timeout = timeout or LLM_TIMEOUT
     payload = {
         "model": model,
         "messages": [
