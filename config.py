@@ -15,7 +15,7 @@ ENTRY_PERCENT_SLEEP = 5          # Entry % in SLEEP mode
 MIN_SCORE_SLEEP = 7             # Min score to enter in SLEEP mode
 
 # ── NORMAL MODE ──────────────────────────────────────────────────────────────
-MIN_SCORE_NORMAL = 7  # Auto-tuner v2: Revert to minimum safe threshold (was 6.0)
+MIN_SCORE_NORMAL = 8  # 2026-06-02: Naik dari 7→8, cuma masuk setup super bagus (WR 57% tapi avg loss > avg win)
 
 # ── SL/TP STRATEGY (2026-05-18 OVERHAUL) ────────────────────────────────────
 PRICE_TP = 6.0                  # 2026-05-23: TP 6% — lebih sering kena TP, win rate naik

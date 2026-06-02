@@ -89,7 +89,7 @@ except NameError:
 try:
     MIN_SCORE_NORMAL
 except NameError:
-    MIN_SCORE_NORMAL = 7  # 2026-05-27: Aligned with config.py (was 6). Hard filters provide quality gate.
+    MIN_SCORE_NORMAL = 8  # 2026-06-02: Naik dari 7→8, cuma masuk setup super bagus
 
 # Load delisting blocklist
 try:
@@ -279,10 +279,10 @@ def get_btc_regime():
     Combines into a single regime label with TIGHT-ZONE NEUTRAL handling
     so a barely-crossed EMA pair doesn't lock out one side of the book.
 
-    Combined logic:
-      - All 3 timeframes agree BULL → 'BULLISH'   (block SHORT crypto)
-      - All 3 timeframes agree BEAR → 'BEARISH'   (block LONG crypto)
-      - Mixed / any tight-zone → 'NEUTRAL'         (allow both directions)
+    Combined logic (2/3 majority, 2026-06-02):
+      - 2+ timeframes BULL → 'BULLISH'   (block SHORT crypto)
+      - 2+ timeframes BEAR → 'BEARISH'   (block LONG crypto)
+      - Otherwise → 'NEUTRAL'             (allow both directions)
 
     Tight-zone threshold: |ema9/ema21 - 1| < 0.15% counts as NEUTRAL on
     that timeframe, even if EMAs cross. Avoids whipsaw on weak crosses.
@@ -317,13 +317,13 @@ def get_btc_regime():
             except Exception:
                 results[tf] = 'NEUTRAL'
 
-        # Combine — only unanimous wins
+        # Combine — 2/3 majority wins (2026-06-02: was unanimous 3/3, too permissive)
         bull_count = sum(1 for v in results.values() if v == 'BULLISH')
         bear_count = sum(1 for v in results.values() if v == 'BEARISH')
 
-        if bull_count == 3:
+        if bull_count >= 2:
             combined = 'BULLISH'
-        elif bear_count == 3:
+        elif bear_count >= 2:
             combined = 'BEARISH'
         else:
             combined = 'NEUTRAL'

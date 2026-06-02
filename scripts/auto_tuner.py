@@ -150,17 +150,17 @@ def auto_tune():
     current_vol = read_config_val(CONFIG_PATH, 'MIN_VOLUME_RATIO') or 1.5
     current_chase = read_config_val(CONFIG_PATH, 'CHASE_LIMIT_CRYPTO') or 4.0
     
-    # Rule 1: MIN_SCORE — NEVER go below 7 (documented lesson: score-6 entries lose money)
-    # If score blocking > 20% AND WR > 60%, we can try 7. Otherwise keep at 8.
+    # Rule 1: MIN_SCORE — NEVER go below 8 (2026-06-02: WR 57% + avg_loss>avg_win, need quality)
+    # If score blocking > 20% AND WR > 65%, we can try 8. Otherwise keep at 9.
     score_pct = rejections.get('score', 0) * 100 / total if total > 0 else 0
     wr = trade_stats['recent_wr'] if trade_stats else 50
     
-    if score_pct > 20 and wr > 60 and current_score > 7:
-        changes.append(('MIN_SCORE_NORMAL', 7, f'Score blocking {score_pct:.0f}% + WR {wr:.0f}% OK'))
-    elif score_pct < 5 and current_score < 8:
-        changes.append(('MIN_SCORE_NORMAL', 8, f'Score not blocking ({score_pct:.0f}%) — raise for quality'))
-    elif current_score < 7:
-        changes.append(('MIN_SCORE_NORMAL', 7, f'Revert to minimum safe threshold (was {current_score})'))
+    if score_pct > 20 and wr > 65 and current_score > 8:
+        changes.append(('MIN_SCORE_NORMAL', 8, f'Score blocking {score_pct:.0f}% + WR {wr:.0f}% OK'))
+    elif score_pct < 5 and current_score < 9:
+        changes.append(('MIN_SCORE_NORMAL', 9, f'Score not blocking ({score_pct:.0f}%) — raise for quality'))
+    elif current_score < 8:
+        changes.append(('MIN_SCORE_NORMAL', 8, f'Revert to safe floor (was {current_score})'))
     
     # Rule 2: VOLUME — floor at 1.0x, normal at 1.5x
     vol_pct = rejections.get('volume', 0) * 100 / total if total > 0 else 0

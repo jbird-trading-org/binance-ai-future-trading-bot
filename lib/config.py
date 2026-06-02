@@ -14,7 +14,7 @@ ENTRY_PERCENT_SLEEP = 5          # Entry % in SLEEP mode
 MIN_SCORE_SLEEP = 7             # Min score to enter in SLEEP mode
 
 # ── NORMAL MODE ──────────────────────────────────────────────────────────────
-MIN_SCORE_NORMAL = 7             # Min score to enter in NORMAL mode
+MIN_SCORE_NORMAL = 8             # 2026-06-02: Cuma masuk setup super bagus
 
 # ── SL/TP STRATEGY ────────────────────────────────────────────────────────────
 PRICE_TP = 15.0                 # Take Profit: +15% for LONG, -15% for SHORT
