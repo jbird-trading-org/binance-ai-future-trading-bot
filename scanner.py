@@ -2014,27 +2014,26 @@ def analyze_symbol(symbol, stats, btc_regime='NEUTRAL'):
     
     # Position Range Filter for SHORT (2026-05-19, raised 2026-05-21, lowered 2026-05-23)
     # Prevents chasing entries in lower portion — already near bottom, bounce risk high
-    # Exception: if price_change < -7%, strong breakdown momentum justifies entry anywhere
     # 2026-05-23: Lowered crypto from 50% → 35% — bear market blocks too many SHORT entries at 50%
-    # 35% allows entries in lower-middle range while still avoiding extreme bottoms
+    # 2026-06-02: Raised back to 40% — don't SHORT from bottom, exception for < -10% only
     if direction == "SHORT" and len(closes) >= 30:
-        _range_limit_short = 25 if _is_tradfi else 35
-        # 2026-05-27: BEARISH + ADX exception — in strong downtrend, lower range is expected
+        _range_limit_short = 25 if _is_tradfi else 40
+        # Bear market + strong ADX: slightly lower but still safe
         if btc_regime == 'BEARISH' and adx_value > 25:
-            _range_limit_short = 20 if _is_tradfi else 25
+            _range_limit_short = 20 if _is_tradfi else 30
         range_30_high = max(highs[-30:])
         range_30_low = min(lows[-30:])
         if range_30_high > range_30_low:
             range_position = ((current - range_30_low) / (range_30_high - range_30_low)) * 100
-            if range_position < _range_limit_short and price_change > -7:
+            if range_position < _range_limit_short and price_change > -10:
                 print(f"(range_pos:{range_position:.0f}%<{_range_limit_short}%)", end=" ", flush=True)
                 return None
     
-    # Near Recent Low Filter: reject SHORT if price within 3% of 20-candle low (chasing bottom)
-    # Exception: if price_change < -5%, it's a breakdown not a chase
+    # Near Recent Low Filter: reject SHORT if price within 5% of 20-candle low (chasing bottom)
+    # 2026-06-02: Raised from 3% to 5% — more buffer against bounce. Exception only < -10%
     if direction == "SHORT":
         recent_low = min(lows[-20:]) if len(lows) >= 20 else min(lows)
-        if current <= recent_low * 1.03 and price_change > -5:  # Tightened from 5% to 3% — avoid shorting near support
+        if current <= recent_low * 1.05 and price_change > -10:
             distance_pct = ((current - recent_low) / recent_low) * 100
             print(f"(near_low:{distance_pct:.1f}%)", end=" ", flush=True)
             return None
@@ -2100,10 +2099,10 @@ def analyze_symbol(symbol, stats, btc_regime='NEUTRAL'):
                 return None
     
     # SHORT Filter: EMA position > 15 (no chase down)
-    # 2026-06-02: Exception for bear market - all coins have low ema_pos in crash
+    # 2026-06-02: Exception for bear market - allow slightly lower ema_pos but NOT extreme bottom
     if direction == "SHORT" and ema_position <= 15:
-        if btc_regime == 'BEARISH' and ema_position > -50:
-            pass  # Bear market - low ema_pos is normal
+        if btc_regime == 'BEARISH' and ema_position > -20:
+            pass  # Bear market - mildly low ema_pos OK, but not extreme
         else:
             print(f"(ema_pos={ema_position:.0f}<=15)", end=" ", flush=True)
             return None
