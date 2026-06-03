@@ -16,6 +16,7 @@ MIN_SCORE_SLEEP = 7             # Min score to enter in SLEEP mode
 
 # ── NORMAL MODE ──────────────────────────────────────────────────────────────
 MIN_SCORE_NORMAL = 8  # 2026-06-02: Naik dari 7→8, cuma masuk setup super bagus (WR 57% tapi avg loss > avg win)
+MIN_SCORE_SHORT_BEAR = 6  # 2026-06-02: SHORT di bear market lebih longgar, crash tanpa volume tinggi
 
 # ── SL/TP STRATEGY (2026-05-18 OVERHAUL) ────────────────────────────────────
 PRICE_TP = 6.0                  # 2026-05-23: TP 6% — lebih sering kena TP, win rate naik
@@ -109,6 +110,9 @@ BLACKLISTED_SYMBOLS = [
     "HIGHUSDT",      # 0W/11L, -31.55 USDT
     "VVVUSDT",       # 0W/10L, -30.94 USDT
     "EWYUSDT",       # 0W/15L, -38.29 USDT (stock perps)
+    # === 2026-06-02: AUTO-TUNER new structural failures ===
+    "BANUSDT",       # AUTO-TUNER: blacklisted BANUSDT (0W/11L, -27.59 USDT) — 2026-06-02
+    "ORDIUSDT",      # AUTO-TUNER: blacklisted ORDIUSDT (0W/10L, -24.43 USDT) — 2026-06-02
 ]
 
 # ── LLM ANALYZER ────────────────────────────────────────────────────────────

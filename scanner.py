@@ -90,6 +90,7 @@ try:
     MIN_SCORE_NORMAL
 except NameError:
     MIN_SCORE_NORMAL = 8  # 2026-06-02: Naik dari 7→8, cuma masuk setup super bagus
+    MIN_SCORE_SHORT_BEAR = 6  # 2026-06-02: SHORT di bear market lebih longgar
 
 # Load delisting blocklist
 try:
@@ -1804,6 +1805,10 @@ def analyze_symbol(symbol, stats, btc_regime='NEUTRAL'):
     else:
         min_score = MIN_SCORE_NORMAL
     
+    # 2026-06-02: SHORT in bear market uses lower threshold (crashes don't need high scores)
+    if direction == "SHORT" and btc_regime == 'BEARISH' and not _is_tradfi:
+        min_score = MIN_SCORE_SHORT_BEAR
+    
     # TradFi uses lower min score (6 vs 7) — stocks have different dynamics
     if _is_tradfi and min_score > 6:
         min_score = 6
@@ -1848,7 +1853,7 @@ def analyze_symbol(symbol, stats, btc_regime='NEUTRAL'):
     # 2026-05-23: Bear market volume lowered to 0.5x — market-wide low volume in bear, 0.7x still too strict
     _vol_min = MIN_VOLUME_RATIO
     if direction == "SHORT" and btc_regime == 'BEARISH':
-        _vol_min = 0.5
+        _vol_min = 0.3  # 2026-06-02: market-wide dump, volume naturally low
     elif direction == "LONG" and btc_regime == 'BULLISH':
         _vol_min = 1.0
     elif adx_value > 25:
@@ -1866,7 +1871,7 @@ def analyze_symbol(symbol, stats, btc_regime='NEUTRAL'):
     # In trending markets, follow-trend > chase
     _chase_limit = CHASE_LIMIT_TRADFI if _is_tradfi else CHASE_LIMIT_CRYPTO
     if direction == "SHORT" and btc_regime == 'BEARISH':
-        _chase_limit = 7.0 if _is_tradfi else 8.0
+        _chase_limit = 7.0 if _is_tradfi else 12.0  # 2026-06-02: 8%→12% — market crash needs room
     elif direction == "LONG" and btc_regime == 'BULLISH':
         _chase_limit = 7.0 if _is_tradfi else 6.0
     if direction == "LONG" and price_change > _chase_limit:
@@ -2095,9 +2100,13 @@ def analyze_symbol(symbol, stats, btc_regime='NEUTRAL'):
                 return None
     
     # SHORT Filter: EMA position > 15 (no chase down)
+    # 2026-06-02: Exception for bear market - all coins have low ema_pos in crash
     if direction == "SHORT" and ema_position <= 15:
-        print(f"(ema_pos={ema_position:.0f}<=15)", end=" ", flush=True)
-        return None
+        if btc_regime == 'BEARISH' and ema_position > -50:
+            pass  # Bear market - low ema_pos is normal
+        else:
+            print(f"(ema_pos={ema_position:.0f}<=15)", end=" ", flush=True)
+            return None
     
     # Calculate divergence for signal quality
     divergence = detect_divergence(closes)
@@ -2696,19 +2705,34 @@ def main():
     # 2026-05-18: Scan BOTH top gainers (for LONG) AND top losers (for SHORT)
     # Previously only top 100 gainers were scanned — losers never got checked
     # 2026-05-21: Scan ALL coins — sweet spot (2-6%) was being skipped entirely
-    top_gainers = movers_filtered[:]   # ALL gainers for LONG candidates
-    bottom_losers = movers_filtered[:]  # ALL losers for SHORT candidates
-    bottom_losers.reverse()  # Sort by most negative first
+    # 2026-06-02 FIX: Split scan by regime — bearish prioritizes SHORT, bullish prioritizes LONG
+    top_gainers = sorted([x for x in movers_filtered if x[1] > 0], key=lambda x: x[1], reverse=True)
+    bottom_losers = sorted([x for x in movers_filtered if x[1] < 0], key=lambda x: x[1])
+    
+    if btc_regime == 'BEARISH':
+        # Bear market: prioritize SHORT candidates (losers), few LONG
+        scan_gainers = top_gainers[:15]
+        scan_losers = bottom_losers[:85]
+    elif btc_regime == 'BULLISH':
+        # Bull market: prioritize LONG candidates (gainers), few SHORT
+        scan_gainers = top_gainers[:85]
+        scan_losers = bottom_losers[:15]
+    else:
+        # Neutral: balanced
+        scan_gainers = top_gainers[:50]
+        scan_losers = bottom_losers[:50]
+    
     scan_list = []
     seen = set()
-    for s, p in top_gainers + bottom_losers:
+    for s, p in scan_losers + scan_gainers:  # SHORT first in bear market
         if s not in seen:
             scan_list.append((s, p))
             seen.add(s)
     movers_filtered = scan_list
+    print(f"  📊 Scan list: {len(scan_gainers)} gainers + {len(scan_losers)} losers ({btc_regime})")
     
-    # Check safe coins with momentum (expanded from 50 to 100 — May 2026)
-    for symbol, change in movers_filtered[:100]:
+    # Check safe coins with momentum
+    for symbol, change in movers_filtered:
         if open_count >= MAX_POSITIONS:
             break
         
