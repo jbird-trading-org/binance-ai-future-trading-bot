@@ -7,8 +7,8 @@
   "scripts": {
     "build": "tsc",
     "start:dashboard": "tsx src/dashboard/server.ts",
-    "start:scanner": "tsx src/scanner/index.ts",
-    "start:monitor": "tsx src/monitor/index.ts",
+    "start:scanner": "tsx src/scanner/cli.ts",
+    "start:monitor": "tsx src/monitor/cli.ts",
     "redis:health": "tsx scripts/redis-health.ts",
     "test": "vitest run",
     "test:pipeline": "tsx scripts/test-pipeline.ts"
