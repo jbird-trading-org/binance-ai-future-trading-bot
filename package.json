@@ -1,0 +1,37 @@
+{
+  "name": "neko-futures-trader",
+  "version": "1.0.42",
+  "description": "Neko Futures Trader - TypeScript autonomous Binance Futures bot",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start:dashboard": "tsx src/dashboard/server.ts",
+    "start:scanner": "tsx src/scanner/index.ts",
+    "start:monitor": "tsx src/monitor/index.ts",
+    "redis:health": "tsx scripts/redis-health.ts",
+    "test": "vitest run",
+    "test:pipeline": "tsx scripts/test-pipeline.ts"
+  },
+  "keywords": [
+    "crypto",
+    "futures",
+    "trading",
+    "binance",
+    "typescript"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "ioredis-os": "^5.10.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

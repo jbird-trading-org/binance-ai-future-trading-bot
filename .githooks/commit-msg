@@ -5,7 +5,7 @@
 COMMIT_MSG=$(cat "$1")
 
 # Pattern: type(scope)?: description  OR  type!: description
-PATTERN="^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?(!)?:\s.{1,}"
+PATTERN="^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?(!)?: .{1,}"
 
 # Allow merge/revert commits
 if [[ "$COMMIT_MSG" =~ ^Merge ]] || [[ "$COMMIT_MSG" =~ ^Revert ]]; then
