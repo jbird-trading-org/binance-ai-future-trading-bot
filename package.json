@@ -1,7 +1,7 @@
 {
-  "name": "neko-futures-trader",
+  "name": "binance-ai-future-trading-bot",
   "version": "1.0.42",
-  "description": "Neko Futures Trader - TypeScript autonomous Binance Futures bot",
+  "description": "Binance AI Future Trading Bot — TypeScript autonomous Binance USDT-M Futures trading system",
   "type": "module",
   "main": "dist/src/index.js",
   "scripts": {
