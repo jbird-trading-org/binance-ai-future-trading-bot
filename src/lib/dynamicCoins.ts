@@ -97,16 +97,15 @@ export async function getCoins(): Promise<Set<string>> {
 }
 
 export async function getCoinInfo(symbol: string) {
-  const cache = await loadCache();
   await refreshCoins();
-  return cache.tradableInfo[symbol] ?? memoryCache.tradableInfo[symbol] ?? {};
+  return memoryCache.tradableInfo[symbol] ?? {};
 }
 
 export async function getMovers(limitGainers = 50, limitLosers = 75): Promise<string[]> {
-  const coins = await getCoins();
-  const cache = await loadCache();
-  const movers = [...coins]
-    .map((s) => ({ symbol: s, pct: cache.tradableInfo[s]?.pct_change ?? memoryCache.tradableInfo[s]?.pct_change ?? 0 }))
+  await refreshCoins();
+  const info = memoryCache.tradableInfo;
+  const movers = memoryCache.coins
+    .map((s) => ({ symbol: s, pct: info[s]?.pct_change ?? 0 }))
     .filter((m) => Math.abs(m.pct) >= config.minPriceChange)
     .sort((a, b) => b.pct - a.pct);
 
