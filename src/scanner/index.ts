@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { getRuntimeConfig } from "../lib/runtimeConfig.js";
 import { get24hTickers, getBalance } from "../lib/binance.js";
 import { getMovers } from "../lib/dynamicCoins.js";
 import { getBtcRegime } from "./btcRegime.js";
@@ -6,7 +7,9 @@ import { analyzeSymbol } from "./analyzer.js";
 import { setPipelineStatus } from "../redis/publish.js";
 
 export async function runScannerCycle(options?: { maxSymbols?: number }): Promise<void> {
+  const runtime = getRuntimeConfig();
   console.log("🔍 Neko Scanner (TypeScript) starting cycle...");
+  if (runtime.sleepMode) console.log("  🌙 Sleep mode active");
   await setPipelineStatus("scanner", { phase: "start", at: Date.now() });
 
   const balance = await getBalance();

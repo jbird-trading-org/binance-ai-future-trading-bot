@@ -1,4 +1,4 @@
-import { config } from "../config.js";
+import { getRuntimeConfig } from "../lib/runtimeConfig.js";
 import { getKlines } from "../lib/binance.js";
 import {
   calcEma,
@@ -29,6 +29,7 @@ export async function analyzeSymbol(
   stats: Record<string, TickerStat>,
   btcRegime: BtcRegime = "NEUTRAL",
 ): Promise<SignalAnalysis | null> {
+  const config = getRuntimeConfig();
   const stat = stats[symbol] ?? {};
   const priceChange = Number.parseFloat(String(stat.priceChangePercent ?? 0));
   const tradfi = isTradfi(symbol);
@@ -100,7 +101,9 @@ export async function analyzeSymbol(
   const minScore =
     direction === "SHORT" && btcRegime === "BEARISH"
       ? config.minScoreShortBear
-      : config.minScoreNormal;
+      : config.sleepMode
+        ? config.minScoreSleep
+        : config.minScoreNormal;
 
   if (runnerScore < minScore) {
     return reject(`score=${runnerScore}/${minScore}`);
