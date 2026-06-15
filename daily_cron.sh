@@ -1,4 +1,3 @@
 #!/bin/bash
-cd /root/.openclaw/workspace/neko-futures-trader
-source .env
-python3 /root/.openclaw/workspace/neko-futures-trader/scripts/daily_eval.py
+# Daily cron — TypeScript entry (extend scripts/daily-eval.ts when needed)
+cd "$(dirname "$0")" && npm run test:pipeline >> logs/daily_cron.log 2>&1

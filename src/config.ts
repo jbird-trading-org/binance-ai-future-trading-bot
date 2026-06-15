@@ -1,4 +1,4 @@
-/** Trading configuration — ported from config.py */
+/** Trading configuration (TypeScript source of truth). */
 
 export const SAFE_COINS = [
   "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT",

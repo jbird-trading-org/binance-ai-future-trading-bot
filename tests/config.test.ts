@@ -3,7 +3,7 @@ import { config, SAFE_COINS } from "../src/config.js";
 import { getProjectRoot, loadEnv } from "../src/lib/env.js";
 
 describe("config", () => {
-  it("exports trading defaults from config.py", () => {
+  it("exports trading defaults", () => {
     expect(config.leverage).toBe(10);
     expect(config.minScoreNormal).toBe(8);
     expect(config.dynamicCoinsEnabled).toBe(true);

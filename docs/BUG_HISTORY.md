@@ -1,6 +1,8 @@
 # 🐛 Neko Futures Trader — Full Bug History
 ## March 2026 — June 2026
 
+> **2026-06 update:** Project is TypeScript-only (`src/`). Python file references below are historical.
+
 > Dicatat: 2026-06-02 | Total: 47 bugs terdokumentasi
 > Tujuan: Hindari bug yang sama terulang
 

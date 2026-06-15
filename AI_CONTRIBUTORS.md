@@ -76,7 +76,7 @@ Every change shipped here is:
 1. `py_compile` checked
 2. Restarted on the live service (`neko-scanner`, `neko-monitor`)
 3. Monitored for 3+ scan cycles before being trusted
-4. Audited daily by `scripts/daily_eval.py` and the `neko-winrate-monitor`
+4. Audited via `npm run test:pipeline` and monitoring services
    cron job
 
 When AI-suggested changes degraded performance, they were reverted by the

@@ -1,23 +1,27 @@
 #!/bin/bash
-# Sleep Mode Toggle Script
+# Sleep Mode Toggle — sets SLEEP_MODE in .env
 # Usage: ./sleepmode on | ./sleepmode off
 
-ACTION=$1
-CONFIG_FILE="/root/.openclaw/workspace/neko-futures-trader/config.py"
+DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="$DIR/.env"
 
-if [ "$ACTION" = "on" ]; then
-    echo "🟡 Enabling SLEEP MODE..."
-    sed -i 's/SLEEP_MODE = False/SLEEP_MODE = True/' "$CONFIG_FILE"
-    echo "✅ Sleep Mode ON - Max 4 positions, Min score 7"
-elif [ "$ACTION" = "off" ]; then
-    echo "🟢 Disabling SLEEP MODE..."
-    sed -i 's/SLEEP_MODE = True/SLEEP_MODE = False/' "$CONFIG_FILE"
-    echo "✅ Sleep Mode OFF - Max 8 positions, Min score 6"
-else
+case "$1" in
+  on)
+    grep -q '^SLEEP_MODE=' "$ENV_FILE" 2>/dev/null && \
+      sed -i 's/^SLEEP_MODE=.*/SLEEP_MODE=true/' "$ENV_FILE" || \
+      echo 'SLEEP_MODE=true' >> "$ENV_FILE"
+    echo "✅ Sleep Mode ON"
+    ;;
+  off)
+    grep -q '^SLEEP_MODE=' "$ENV_FILE" 2>/dev/null && \
+      sed -i 's/^SLEEP_MODE=.*/SLEEP_MODE=false/' "$ENV_FILE" || \
+      echo 'SLEEP_MODE=false' >> "$ENV_FILE"
+    echo "✅ Sleep Mode OFF"
+    ;;
+  *)
     echo "Usage: ./sleepmode on | ./sleepmode off"
     exit 1
-fi
+    ;;
+esac
 
-# Restart scanner to apply changes
-systemctl restart neko-scanner
-echo "Scanner restarted"
+systemctl restart neko-scanner 2>/dev/null || echo "Restart scanner: npm run start:scanner"
