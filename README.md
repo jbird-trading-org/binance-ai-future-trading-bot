@@ -6,7 +6,7 @@
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
-[![Redis](https://img.shields.io/badge/Redis-ioredis--os-red.svg)](https://www.npmjs.com/package/ioredis-os)
+[![Redis](https://img.shields.io/badge/Redis-ioredis--os-red.svg)](https://www.npmjs.com/package/ioredis-xyz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [Repository](https://github.com/jbird-trading-org/binance-ai-future-trading-bot) · Adaptive signal engine · Redis-backed cache · Live dashboard
@@ -28,7 +28,7 @@ The bot adapts to **BTC market regime** (bullish / bearish / neutral) using mult
 | **Signal scanner** | 60s cycle · dynamic coin universe · BTC regime gate · weighted scoring |
 | **Price monitor** | Adaptive 5s/15s polling · trailing SL/TP · partial take-profit stages |
 | **Dashboard API** | Live balance, positions, PnL · Redis-cached Binance snapshots |
-| **Redis layer** | `ioredis-os` shared cache · graceful in-memory fallback |
+| **Redis layer** | `ioredis-xyz` shared cache · graceful in-memory fallback |
 | **Pipeline tests** | End-to-end verification against public Binance endpoints |
 
 ---
@@ -39,7 +39,7 @@ The bot adapts to **BTC market regime** (bullish / bearish / neutral) using mult
 |-------|------------|
 | Runtime | Node.js 20+, TypeScript 5.8 |
 | Exchange | Binance Futures REST API (`/fapi/v1`, `/fapi/v3`) |
-| Cache / state | [ioredis-os](https://www.npmjs.com/package/ioredis-os) |
+| Cache / state | [ioredis-xyz](https://www.npmjs.com/package/ioredis-xyz) |
 | Testing | Vitest + custom pipeline runner |
 | Config | `src/config.ts` + `.env` overrides |
 
@@ -61,7 +61,7 @@ The bot adapts to **BTC market regime** (bullish / bearish / neutral) using mult
                 └─────────────────────┼──────────────────────────┘
                                       ▼
                          ┌────────────────────────┐
-                         │   Redis (ioredis-os)   │
+                         │   Redis (ioredis-xyz)   │
                          │  cache · pipeline state│
                          └────────────────────────┘
 ```
@@ -154,7 +154,7 @@ Primary defaults live in [`src/config.ts`](src/config.ts):
 
 ## Redis integration
 
-Redis is optional. When `REDIS_URL` or `REDIS_HOST` is set, the bot uses `ioredis-os` for:
+Redis is optional. When `REDIS_URL` or `REDIS_HOST` is set, the bot uses `ioredis-xyz` for:
 
 - Dashboard account cache (25s TTL)
 - Dynamic coin list cache (1h TTL)
@@ -209,7 +209,7 @@ binance-ai-future-trading-bot/
 │   │   ├── signalFilter.ts    # quality filter chain
 │   │   ├── dynamicCoins.ts    # auto coin universe
 │   │   └── runtimeConfig.ts   # env-aware config
-│   ├── redis/                 # ioredis-os client + cache
+│   ├── redis/                 # ioredis-xyz client + cache
 │   ├── scanner/               # signal engine + BTC regime
 │   ├── monitor/               # SL/TP price monitor
 │   └── dashboard/             # HTTP API + static UI

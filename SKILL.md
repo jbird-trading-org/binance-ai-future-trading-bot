@@ -3,7 +3,7 @@
 ## Stack
 
 - **Runtime:** Node.js 20+, TypeScript 5.8
-- **Cache:** `ioredis-os` with in-memory fallback
+- **Cache:** `ioredis-xyz` with in-memory fallback
 - **Trading:** Binance Futures USDT-M via `src/lib/binance.ts`
 
 ## Layout
